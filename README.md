@@ -19,7 +19,7 @@
 
 ## Запуск
 
-Приложение можно собрать вручную, используя инструкцию ниже, или загрузить на устройство актуальную релизную [версию](https://github.com/moznoazachem/giga-pisar-android/releases/latest).
+Проще всего поставить приложение из [Google Play](https://play.google.com/store/apps/details?id=ru.gigapisar). Если магазина нет, можно загрузить на устройство актуальную релизную [версию](https://github.com/moznoazachem/giga-pisar-android/releases/latest) в виде APK или собрать приложение вручную по инструкции ниже.
 
 ## Примечания
 
