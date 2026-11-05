@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
-import android.view.ViewGroup
 import android.view.WindowManager
 import kotlin.math.roundToInt
 
@@ -24,12 +23,6 @@ class OverlayManager(
         private const val EDGE_MARGIN_DP = 0
         private const val TOP_MARGIN_DP = 96
         private const val CIRCLE_RADIUS_DP = 43
-
-        /** How strongly the recording strip blurs what is behind it. */
-        private const val BAR_BLUR_DP = 24
-
-        /** How far the glass strip runs into the button window: past the ring padding, under the circle. */
-        private const val BAR_REACH_DP = 30
     }
 
     private val density =
@@ -155,7 +148,7 @@ class OverlayManager(
             lock.progress = 0f
             bar.handsFree = true
             barParams.flags = barParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-            updateBarWindow()
+            updateWindow(bar, barParams)
             onLocked()
         }
 
@@ -303,19 +296,16 @@ class OverlayManager(
         button.inwardSign = if (left) 1f else -1f
 
         val barHeight = barParams.height
-        // Frosted glass cannot be drawn by the button, so the strip itself reaches under the circle.
-        barReach = if (glassAvailable()) (BAR_REACH_DP * density * scale).roundToInt() else 0
-        val barWidth = if (left) bounds.width - barMargin - (homeX + size - barReach) else homeX - barMargin + barReach
+        val barWidth = if (left) bounds.width - barMargin - (homeX + size) else homeX - barMargin
         if (barWidth >= (140 * density).roundToInt()) {
             bar.side = if (left) 1 else -1
             barParams.width = barWidth
-            barParams.x = if (left) homeX + size - barReach else barMargin
+            barParams.x = if (left) homeX + size else barMargin
             barParams.y = centerY - barHeight / 2
             barParams.flags = barParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             bar.restart()
-            showBarWindow()
-            // With glass the strip itself runs under the circle, so the button draws no tail.
-            button.barSide = if (barReach > 0) 0 else if (left) 1 else -1
+            addWindow(bar, barParams)
+            button.barSide = if (left) 1 else -1
         }
 
         // The lock goes above the button, or below it when the button sits near the top.
@@ -343,7 +333,7 @@ class OverlayManager(
         if (!chromeShown) return
         chromeShown = false
         bar.handsFree = false
-        hideBarWindow()
+        removeWindow(bar)
         removeWindow(lock)
         moveButtonTo(homeX, homeY)
     }
@@ -362,16 +352,16 @@ class OverlayManager(
         val rise = (minOf(up, 24 * density) * -button.lockSign).roundToInt()
         lock.progress = up / (80 * density * scale)
         bar.cancelProgress = inward / (110 * density * scale)
-        button.barSide = if (rise != 0 || !barShown || barReach > 0) 0 else bar.side
+        button.barSide = if (rise != 0 || bar.parent == null) 0 else bar.side
         moveButtonTo(homeX + shiftX, homeY - rise)
-        if (barShown) {
+        if (bar.parent != null) {
             if (bar.side < 0) {
-                barParams.width = (homeX + shiftX - barMargin + barReach).coerceAtLeast(1)
+                barParams.width = (homeX + shiftX - barMargin).coerceAtLeast(1)
             } else {
-                barParams.x = homeX + buttonSize + shiftX - barReach
+                barParams.x = homeX + buttonSize + shiftX
                 barParams.width = (getScreenBounds().width - barMargin - barParams.x).coerceAtLeast(1)
             }
-            updateBarWindow()
+            updateWindow(bar, barParams)
         }
     }
 
@@ -385,112 +375,6 @@ class OverlayManager(
         targetX = x
         targetY = y
         updateWindow(button, params)
-    }
-
-    private var barShown = false
-
-    /** How far the strip runs under the button window (glass only). */
-    private var barReach = 0
-    private var barDialog: android.app.Dialog? = null
-
-    /** Frosted glass needs Android 12 and the system's cross-window blur switched on. */
-    private fun glassAvailable(): Boolean =
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S &&
-            try {
-                windowManager.isCrossWindowBlurEnabled
-            } catch (_: Exception) {
-                false
-            }
-
-    /**
-     * The strip goes up either as a plain overlay window or, where the system can blur
-     * behind a window, inside a dialog window whose background is blurred: only a dialog
-     * window gets a background blur shaped like the strip, a plain window can only blur
-     * the whole screen behind it.
-     */
-    private fun showBarWindow() {
-        (bar.parent as? ViewGroup)?.removeView(bar)
-        val glass = glassAvailable()
-        bar.glass = glass
-        android.util.Log.i("GigaPisarBar", "glass=$glass sdk=${android.os.Build.VERSION.SDK_INT}")
-        if (!glass) {
-            addWindow(bar, barParams)
-            barShown = bar.parent != null
-            return
-        }
-        try {
-            val dialog = android.app.Dialog(service, android.R.style.Theme_Translucent_NoTitleBar)
-            val window = dialog.window ?: throw IllegalStateException("no window")
-            window.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            )
-            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            window.setDimAmount(0f)
-            dialog.setCancelable(false)
-            // The content view creates the window's decor; the blur radius needs it to exist.
-            dialog.setContentView(bar)
-            val corner = (RecordingBar.HEIGHT_DP / 2f) * density
-            window.setBackgroundDrawable(
-                android.graphics.drawable.GradientDrawable().apply {
-                    setColor(0x01FFFFFF)
-                    cornerRadius = corner
-                },
-            )
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                window.setBackgroundBlurRadius((BAR_BLUR_DP * density).roundToInt())
-            }
-            applyBarAttributes(window)
-            dialog.show()
-            barDialog = dialog
-            barShown = true
-        } catch (e: Exception) {
-            android.util.Log.w("GigaPisarBar", "glass dialog failed", e)
-            (bar.parent as? ViewGroup)?.removeView(bar)
-            bar.glass = false
-            addWindow(bar, barParams)
-            barShown = bar.parent != null
-        }
-    }
-
-    private fun applyBarAttributes(window: android.view.Window) {
-        val a = window.attributes
-        a.gravity = Gravity.TOP or Gravity.START
-        a.x = barParams.x
-        a.y = barParams.y
-        a.width = barParams.width
-        a.height = barParams.height
-        a.format = PixelFormat.TRANSLUCENT
-        window.attributes = a
-    }
-
-    private fun updateBarWindow() {
-        if (!barShown) return
-        val dialog = barDialog
-        if (dialog != null) {
-            dialog.window?.let { applyBarAttributes(it) }
-        } else {
-            updateWindow(bar, barParams)
-        }
-    }
-
-    private fun hideBarWindow() {
-        if (!barShown) return
-        barShown = false
-        val dialog = barDialog
-        barDialog = null
-        if (dialog != null) {
-            try {
-                dialog.dismiss()
-            } catch (_: Exception) {
-                // Already gone.
-            }
-            (bar.parent as? ViewGroup)?.removeView(bar)
-        } else {
-            removeWindow(bar)
-        }
     }
 
     private fun addWindow(
