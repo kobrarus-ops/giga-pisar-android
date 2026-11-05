@@ -4,6 +4,7 @@ import android.Manifest
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.media.AudioManager
@@ -771,6 +772,15 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 mainHandler.postDelayed(this, UPDATE_TICK_MS)
             }
         }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // A foldable opened or closed, or the phone turned: the overlays follow the new screen.
+        mainHandler.post {
+            overlay.onScreenChanged()
+            pill.onScreenChanged()
+        }
+    }
 
     override fun onInterrupt() {
         cancelVolumeKeyGesture()

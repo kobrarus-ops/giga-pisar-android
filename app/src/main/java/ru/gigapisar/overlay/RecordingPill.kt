@@ -107,6 +107,11 @@ class RecordingPill(
     val showsAction: Boolean
         get() = attached && touchable
 
+    /** The screen changed under the pill: put it back where it belongs. */
+    fun onScreenChanged() {
+        if (attached) place(lastAnchor)
+    }
+
     fun hide() {
         view.removeCallbacks(hideRunnable)
         view.stop()
@@ -142,8 +147,9 @@ class RecordingPill(
         val gap = (10 * metrics.density).roundToInt()
         val w = view.pillWidth()
         val h = view.pillHeight()
-        val screenW = metrics.widthPixels
-        val screenH = metrics.heightPixels
+        val screen = ScreenSize.of(service, windowManager)
+        val screenW = screen.x
+        val screenH = screen.y
         if (anchor != null && !anchor.isEmpty) {
             params.x = (anchor.centerX() - w / 2).coerceIn(gap, max(gap, screenW - w - gap))
             // Above the field; below it when the field is at the very top.

@@ -632,13 +632,24 @@ class OverlayManager(
     }
 
     private fun getScreenBounds(): ScreenBounds {
-        val metrics =
-            service.resources.displayMetrics
+        val size = ScreenSize.of(service, windowManager)
+        return ScreenBounds(width = size.x, height = size.y)
+    }
 
-        return ScreenBounds(
-            width = metrics.widthPixels,
-            height = metrics.heightPixels,
-        )
+    /** The screen changed (a foldable opened or closed, rotation): keep the button on it. */
+    fun onScreenChanged() {
+        if (!attached) return
+        val bounds = getScreenBounds()
+        val maxX = (bounds.width - buttonSize - edgeMargin).coerceAtLeast(edgeMargin)
+        val maxY = (bounds.height - buttonSize - edgeMargin).coerceAtLeast(edgeMargin)
+        val x = params.x.coerceIn(edgeMargin, maxX)
+        val y = params.y.coerceIn(edgeMargin, maxY)
+        if (x != params.x || y != params.y) {
+            params.x = x
+            params.y = y
+            syncTargets()
+            updateWindow(button, params)
+        }
     }
 
     private data class ScreenBounds(
