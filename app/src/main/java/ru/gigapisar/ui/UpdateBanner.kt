@@ -15,6 +15,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -121,6 +122,20 @@ internal fun UpdateBanner(modifier: Modifier = Modifier) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(if (needsPermission) R.string.update_allow_button else R.string.update_button)) }
+            }
+            val play = remember { Updates.playStoreIntent(context) }
+            if (play != null && p == null) {
+                Text(stringResource(R.string.update_play_hint), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            context.startActivity(play)
+                        } catch (_: Exception) {
+                            // The store is there but would not open: the GitHub button still works.
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.update_play_button)) }
             }
         }
     }

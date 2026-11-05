@@ -29,6 +29,9 @@ object SettingsRepository {
     private val volumeKeyEnabledKey =
         booleanPreferencesKey("volume_key_enabled")
 
+    private val sendKeyKey =
+        booleanPreferencesKey("send_key")
+
     private val fabScaleKey =
         floatPreferencesKey("fab_scale")
 
@@ -137,6 +140,19 @@ object SettingsRepository {
         context.settingsDataStore.data.map { preferences ->
             preferences[volumeKeyEnabledKey] ?: true
         }
+
+    /** Volume up right after a dictation taps the messenger's "Send" button. */
+    fun sendKey(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { preferences ->
+            preferences[sendKeyKey] ?: false
+        }
+
+    suspend fun setSendKey(
+        context: Context,
+        enabled: Boolean,
+    ) {
+        context.settingsDataStore.edit { it[sendKeyKey] = enabled }
+    }
 
     /** Never paste through the clipboard: where a field does not take text directly, say so instead. */
     fun noClipboard(context: Context): Flow<Boolean> =

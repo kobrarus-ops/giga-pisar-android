@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessibilityNew
@@ -61,6 +62,7 @@ internal fun SettingsList(
     insertionMode: InsertionMode,
     virtualButtonVisible: Boolean,
     volumeKeyEnabled: Boolean,
+    sendKey: Boolean = false,
     vibrationEnabled: Boolean,
     noClipboard: Boolean = false,
     simpleSyntax: Boolean = false,
@@ -72,6 +74,7 @@ internal fun SettingsList(
     onInsertionMode: (InsertionMode) -> Unit,
     onVirtualButton: (Boolean) -> Unit,
     onVolumeKey: (Boolean) -> Unit,
+    onSendKey: (Boolean) -> Unit = {},
     onVibration: (Boolean) -> Unit,
     onNoClipboard: (Boolean) -> Unit = {},
     onSimpleSyntax: (Boolean) -> Unit = {},
@@ -116,6 +119,15 @@ internal fun SettingsList(
             checked = volumeKeyEnabled,
             onChange = onVolumeKey,
         )
+        if (volumeKeyEnabled && insertionMode == InsertionMode.TEXT_FIELD) {
+            SwitchRow(
+                icon = Icons.AutoMirrored.Outlined.Send,
+                title = R.string.send_key,
+                subtitle = R.string.send_key_hint,
+                checked = sendKey,
+                onChange = onSendKey,
+            )
+        }
         SwitchRow(
             icon = Icons.Outlined.Vibration,
             title = R.string.vibration,

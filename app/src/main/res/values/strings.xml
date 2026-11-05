@@ -64,6 +64,9 @@
     <string name="floating_button_text_field">Появляется, когда открыто поле ввода</string>
     <string name="volume_key">Запись кнопкой громкости</string>
     <string name="volume_key_hint">В поле ввода зажмите громкость вниз и говорите. Вне поля она просто убавляет звук</string>
+    <string name="send_key">Отправлять громкостью вверх</string>
+    <string name="send_key_hint">Надиктовали, текст встал в поле: нажмите громкость вверх, и Писарь нажмёт «Отправить» в мессенджере. Работает 20 секунд после вставки, в остальное время кнопка прибавляет звук как обычно</string>
+    <string name="send_button_missing">Кнопку «Отправить» не нашёл</string>
     <string name="vibration">Вибрация</string>
     <string name="vibration_hint">Коротко в начале и в конце записи</string>
     <string name="simple_syntax">Упрощать синтаксис</string>
@@ -146,6 +149,8 @@
     <string name="update_title">Вышла версия %1$s</string>
     <string name="update_tap">Нажмите, чтобы обновить</string>
     <string name="update_button">Обновить</string>
+    <string name="update_play_button">Поставить из Google Play</string>
+    <string name="update_play_hint">Писарь теперь есть в Google Play. Поставьте оттуда один раз: настройки и модель сохранятся, а обновления дальше будут приходить сами</string>
     <string name="update_downloading">Скачиваю: %1$d%%</string>
     <string name="update_allow_install">Разрешите Писарю устанавливать приложения: это нужно один раз. Потом вернитесь сюда.</string>
     <string name="update_allow_button">Продолжить установку</string>

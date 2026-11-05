@@ -110,6 +110,23 @@ object Updates {
     }
 
     /** Tells about a new version once, in the notification shade. */
+    /**
+     * The app's page in Google Play, when the store is on this phone. Installing from there
+     * once moves the phone onto store updates: same signature, so settings and the model stay.
+     */
+    fun playStoreIntent(context: Context): Intent? {
+        val installed =
+            try {
+                context.packageManager.getPackageInfo("com.android.vending", 0) != null
+            } catch (_: Exception) {
+                false
+            }
+        if (!installed) return null
+        return Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + context.packageName))
+            .setPackage("com.android.vending")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
     fun notifyOnce(
         context: Context,
         info: UpdateInfo,
@@ -144,8 +161,12 @@ object Updates {
                 .setStyle(NotificationCompat.BigTextStyle().bigText(info.notes(context)))
                 .setContentIntent(open)
                 .setAutoCancel(true)
-                .build()
-        manager.notify(NOTIFICATION_ID, notification)
+        playStoreIntent(context)?.let { play ->
+            val toPlay =
+                PendingIntent.getActivity(context, 1, play, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            notification.addAction(0, ui.getString(R.string.update_play_button), toPlay)
+        }
+        manager.notify(NOTIFICATION_ID, notification.build())
         p.edit().putLong("notifiedCode", info.versionCode).apply()
     }
 

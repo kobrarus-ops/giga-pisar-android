@@ -37,6 +37,7 @@ import ru.gigapisar.brain.BrainException
 import ru.gigapisar.brain.BrainProviders
 import ru.gigapisar.brain.KeyVault
 import ru.gigapisar.brain.brainRussian
+import ru.gigapisar.insertion.SendButton
 import ru.gigapisar.insertion.TextInserter
 import ru.gigapisar.model.ModelManager
 import ru.gigapisar.overlay.FabPreview
@@ -91,6 +92,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
     private var virtualButtonEnabled = true
     private var volumeKeyEnabled = true
+    private var sendKeyEnabled = false
     private var vibrationEnabled = true
     private var fabGestures = true
     private var noClipboard = false
@@ -110,6 +112,11 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private var volumeKeyPressed = false
     private var volumeKeyHoldTriggered = false
     private var volumeKeyStartedRecording = false
+
+    /** Volume up sends only for a short while after a dictation went into a field of this app. */
+    private var sendKeyPressed = false
+    private var sendArmedUntil = 0L
+    private var sendArmedPackage: String? = null
 
     @Volatile
     private var recording = false
@@ -236,6 +243,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
         serviceScope.launch {
             SettingsRepository
+                .sendKey(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> sendKeyEnabled = enabled }
+        }
+
+        serviceScope.launch {
+            SettingsRepository
                 .noClipboard(this@GigaPisarAccessibilityService)
                 .collectLatest { enabled -> noClipboard = enabled }
         }
@@ -268,6 +281,9 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            return handleSendKey(event)
+        }
         if (event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
             return false
         }
@@ -622,6 +638,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                                     } else if (brainFailure == null && brained.original == null) {
                                         pill.hide()
                                     }
+                                    if (inserted) armSendKey()
                                 }
                             }
                         }
@@ -881,6 +898,96 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Text just went into a field: for a short while volume up means "send". */
+    private fun armSendKey() {
+        if (!sendKeyEnabled) return
+        sendArmedPackage = focusedNode?.packageName?.toString() ?: activePackage()
+        sendArmedUntil = SystemClock.uptimeMillis() + SEND_KEY_WINDOW_MS
+    }
+
+    private fun activePackage(): String? =
+        try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        }
+
+    /** Volume up sends only when armed, in the same app, with a field still focused; otherwise it is plain volume. */
+    private fun sendKeyArmed(): Boolean =
+        sendKeyEnabled &&
+            insertionMode == InsertionMode.TEXT_FIELD &&
+            !recording &&
+            SystemClock.uptimeMillis() < sendArmedUntil &&
+            sendArmedPackage != null &&
+            sendArmedPackage == activePackage() &&
+            !onLockScreen() &&
+            findFocusedEditable() != null
+
+    private fun handleSendKey(event: KeyEvent): Boolean =
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                when {
+                    sendKeyPressed -> true
+                    event.repeatCount != 0 -> false
+                    !sendKeyArmed() -> false
+                    else -> {
+                        sendKeyPressed = true
+                        true
+                    }
+                }
+            }
+
+            KeyEvent.ACTION_UP -> {
+                if (!sendKeyPressed) {
+                    false
+                } else {
+                    sendKeyPressed = false
+                    sendArmedUntil = 0L
+                    if (performSend()) {
+                        buzz()
+                    } else {
+                        // No send button here: the press stays an ordinary volume-up, and the pill says why.
+                        audioManager.adjustStreamVolume(
+                            AudioManager.STREAM_MUSIC,
+                            AudioManager.ADJUST_RAISE,
+                            AudioManager.FLAG_SHOW_UI,
+                        )
+                        notifyUser(ui().getString(R.string.send_button_missing))
+                    }
+                    true
+                }
+            }
+
+            else -> sendKeyPressed
+        }
+
+    /** Taps the app's "Send" button; failing that, the keyboard's send action of a single-line field. */
+    private fun performSend(): Boolean {
+        val field = findFocusedEditable()
+        val root = try { rootInActiveWindow } catch (_: Exception) { null }
+        val bounds =
+            field?.let { node ->
+                try {
+                    Rect().also(node::getBoundsInScreen)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        val button = root?.let { SendButton.find(it, bounds) }
+        if (button != null) {
+            val clicked = try { button.performAction(AccessibilityNodeInfo.ACTION_CLICK) } catch (_: Exception) { false }
+            if (clicked) return true
+        }
+        if (field != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !field.isMultiLine) {
+            return try {
+                field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+            } catch (_: Exception) {
+                false
+            }
+        }
+        return false
+    }
+
     private fun cancelVolumeKeyGesture() {
         mainHandler.removeCallbacks(volumeKeyHoldRunnable)
         volumeKeyPressed = false
@@ -891,6 +998,9 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     companion object {
         // An ordinary tap lasts 100-200 ms; recording starts only on a deliberate hold.
         private const val VOLUME_RECORDING_HOLD_DELAY_MS = 350L
+
+        /** How long after an insertion volume up still means "send". */
+        private const val SEND_KEY_WINDOW_MS = 20_000L
 
         /** How long the size preview stays after the slider stops. */
         private const val FAB_PREVIEW_LINGER_MS = 1200L

@@ -44,6 +44,7 @@ fun MainScreen(activity: ComponentActivity) {
     var insertionMode by remember { mutableStateOf(InsertionMode.TEXT_FIELD) }
     var virtualButtonVisible by remember { mutableStateOf(true) }
     var volumeKeyEnabled by remember { mutableStateOf(true) }
+    var sendKey by remember { mutableStateOf(false) }
     var vibrationEnabled by remember { mutableStateOf(true) }
     var fabGestures by remember { mutableStateOf(true) }
     var noClipboard by remember { mutableStateOf(false) }
@@ -81,6 +82,9 @@ fun MainScreen(activity: ComponentActivity) {
     }
     LaunchedEffect(context) {
         SettingsRepository.volumeKeyEnabled(context).collect { volumeKeyEnabled = it }
+    }
+    LaunchedEffect(context) {
+        SettingsRepository.sendKey(context).collect { sendKey = it }
     }
     LaunchedEffect(context) {
         SettingsRepository.vibrationEnabled(context).collect { vibrationEnabled = it }
@@ -176,6 +180,8 @@ fun MainScreen(activity: ComponentActivity) {
                     onInsertionMode = { scope.launch { SettingsRepository.setInsertionMode(context, it) } },
                     onVirtualButton = { scope.launch { SettingsRepository.setVirtualButtonVisible(context, it) } },
                     onVolumeKey = { scope.launch { SettingsRepository.setVolumeKeyEnabled(context, it) } },
+                    sendKey = sendKey,
+                    onSendKey = { scope.launch { SettingsRepository.setSendKey(context, it) } },
                     onVibration = { scope.launch { SettingsRepository.setVibrationEnabled(context, it) } },
                     noClipboard = noClipboard,
                     onNoClipboard = { scope.launch { SettingsRepository.setNoClipboard(context, it) } },
