@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Shop
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.SwipeUp
 import androidx.compose.material.icons.outlined.TextFormat
@@ -49,6 +50,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import ru.gigapisar.R
+import ru.gigapisar.update.Updates
+import ru.gigapisar.BuildConfig
 import ru.gigapisar.settings.AppLanguage
 import ru.gigapisar.settings.InsertionMode
 
@@ -216,6 +219,21 @@ internal fun SettingsList(
             title = stringResource(R.string.about_share),
             onClick = { share(context) },
         )
+        val play = remember { if (BuildConfig.SELF_UPDATE) Updates.playStoreIntent(context) else null }
+        if (play != null) {
+            InfoRow(
+                icon = Icons.Outlined.Shop,
+                title = stringResource(R.string.about_play),
+                subtitle = stringResource(R.string.about_play_hint),
+                onClick = {
+                    try {
+                        context.startActivity(play)
+                    } catch (_: Exception) {
+                        // The store is there but would not open.
+                    }
+                },
+            )
+        }
     }
 }
 

@@ -152,19 +152,27 @@ object Updates {
                 Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
+        val play = playStoreIntent(context)
+        val toPlay =
+            play?.let { PendingIntent.getActivity(context, 1, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) }
         val notification =
             NotificationCompat
                 .Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(ui.getString(R.string.update_title, info.version))
-                .setContentText(info.notes(context).ifEmpty { ui.getString(R.string.update_tap) })
-                .setStyle(NotificationCompat.BigTextStyle().bigText(info.notes(context)))
-                .setContentIntent(open)
+                .setContentText(
+                    if (toPlay != null) ui.getString(R.string.update_play_notification) else info.notes(context).ifEmpty { ui.getString(R.string.update_tap) },
+                )
+                .setStyle(
+                    NotificationCompat.BigTextStyle().bigText(
+                        if (toPlay != null) ui.getString(R.string.update_play_notification) + "\n\n" + info.notes(context) else info.notes(context),
+                    ),
+                )
+                // With the store on the phone a tap goes there; the file update stays one button away.
+                .setContentIntent(toPlay ?: open)
                 .setAutoCancel(true)
-        playStoreIntent(context)?.let { play ->
-            val toPlay =
-                PendingIntent.getActivity(context, 1, play, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            notification.addAction(0, ui.getString(R.string.update_play_button), toPlay)
+        if (toPlay != null) {
+            notification.addAction(0, ui.getString(R.string.update_file_button), open)
         }
         manager.notify(NOTIFICATION_ID, notification.build())
         p.edit().putLong("notifiedCode", info.versionCode).apply()

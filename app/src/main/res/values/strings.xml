@@ -87,6 +87,8 @@
     <string name="about_source">Исходный код</string>
     <string name="about_source_hint">GitHub</string>
     <string name="about_share">Рассказать другу</string>
+    <string name="about_play">Писарь есть в Google Play</string>
+    <string name="about_play_hint">Поставьте оттуда один раз, и обновления будут приходить сами</string>
     <string name="share_text">Гига Писарь: диктовка на русском прямо на телефоне, без интернета. Скачать: %1$s</string>
 
     <string name="section_brain">Мозг</string>
@@ -150,6 +152,8 @@
     <string name="update_tap">Нажмите, чтобы обновить</string>
     <string name="update_button">Обновить</string>
     <string name="update_play_button">Поставить из Google Play</string>
+    <string name="update_file_button">Или обновить файлом, как раньше</string>
+    <string name="update_play_notification">Писарь теперь в Google Play. Нажмите, чтобы поставить оттуда: настройки и модель сохранятся, обновления будут приходить сами</string>
     <string name="update_play_hint">Писарь теперь есть в Google Play. Поставьте оттуда один раз: настройки и модель сохранятся, а обновления дальше будут приходить сами</string>
     <string name="update_downloading">Скачиваю: %1$d%%</string>
     <string name="update_allow_install">Разрешите Писарю устанавливать приложения: это нужно один раз. Потом вернитесь сюда.</string>

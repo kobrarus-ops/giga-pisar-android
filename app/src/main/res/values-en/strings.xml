@@ -87,6 +87,8 @@
     <string name="about_source">Source code</string>
     <string name="about_source_hint">GitHub</string>
     <string name="about_share">Tell a friend</string>
+    <string name="about_play">Pisar is on Google Play</string>
+    <string name="about_play_hint">Install it from there once, and updates will come by themselves</string>
     <string name="share_text">Giga Pisar: Russian dictation right on the phone, offline. Download: %1$s</string>
 
     <string name="section_brain">Brain</string>
@@ -150,6 +152,8 @@
     <string name="update_tap">Tap to update</string>
     <string name="update_button">Update</string>
     <string name="update_play_button">Install from Google Play</string>
+    <string name="update_file_button">Or update from the file, as before</string>
+    <string name="update_play_notification">Pisar is on Google Play now. Tap to install it from there: your settings and the model stay, and updates will come by themselves</string>
     <string name="update_play_hint">Pisar is on Google Play now. Install it from there once: your settings and the model stay, and updates will come by themselves</string>
     <string name="update_downloading">Downloading: %1$d%%</string>
     <string name="update_allow_install">Let Pisar install apps: needed once. Then come back here.</string>
