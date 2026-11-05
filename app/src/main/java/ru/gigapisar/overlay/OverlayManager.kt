@@ -23,6 +23,9 @@ class OverlayManager(
         private const val EDGE_MARGIN_DP = 0
         private const val TOP_MARGIN_DP = 96
         private const val CIRCLE_RADIUS_DP = 43
+
+        /** The longest the recording strip gets, whatever the screen width. */
+        private const val BAR_MAX_DP = 360
     }
 
     private val density =
@@ -75,6 +78,9 @@ class OverlayManager(
     private var homeX = 0
     private var homeY = 0
     private var barMargin = (8 * density).roundToInt()
+
+    /** The strip's width at rest, before a slide shortens it. */
+    private var barBase = 0
 
     private val barParams =
         WindowManager
@@ -296,11 +302,15 @@ class OverlayManager(
         button.inwardSign = if (left) 1f else -1f
 
         val barHeight = barParams.height
-        val barWidth = if (left) bounds.width - barMargin - (homeX + size) else homeX - barMargin
+        // The strip sits next to the button and never grows past BAR_MAX_DP: on a wide screen
+        // (an open foldable, a tablet) it would otherwise run across half the display.
+        val room = if (left) bounds.width - barMargin - (homeX + size) else homeX - barMargin
+        val barWidth = minOf(room, (BAR_MAX_DP * density).roundToInt())
         if (barWidth >= (140 * density).roundToInt()) {
             bar.side = if (left) 1 else -1
+            barBase = barWidth
             barParams.width = barWidth
-            barParams.x = if (left) homeX + size else barMargin
+            barParams.x = if (left) homeX + size else homeX - barWidth
             barParams.y = centerY - barHeight / 2
             barParams.flags = barParams.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             bar.restart()
@@ -356,10 +366,11 @@ class OverlayManager(
         moveButtonTo(homeX + shiftX, homeY - rise)
         if (bar.parent != null) {
             if (bar.side < 0) {
-                barParams.width = (homeX + shiftX - barMargin).coerceAtLeast(1)
+                // The far end stays put; the button eats the strip as it slides toward "cancel".
+                barParams.width = (barBase + shiftX).coerceAtLeast(1)
             } else {
                 barParams.x = homeX + buttonSize + shiftX
-                barParams.width = (getScreenBounds().width - barMargin - barParams.x).coerceAtLeast(1)
+                barParams.width = (barBase - shiftX).coerceAtLeast(1)
             }
             updateWindow(bar, barParams)
         }
@@ -427,6 +438,7 @@ class OverlayManager(
     }
 
     private fun restorePosition() {
+        laidOutFor = getScreenBounds()
         val preferences =
             service.getSharedPreferences(
                 POSITION_PREFERENCES,
@@ -636,19 +648,38 @@ class OverlayManager(
         return ScreenBounds(width = size.x, height = size.y)
     }
 
-    /** The screen changed (a foldable opened or closed, rotation): keep the button on it. */
+    /** The screen the button was last laid out on, to keep its edge when the screen changes. */
+    private var laidOutFor: ScreenBounds? = null
+
+    /**
+     * The screen changed (a foldable opened or closed, rotation): the button keeps its
+     * distance from the nearer side edge and its share of the height, and stays on screen.
+     */
     fun onScreenChanged() {
         if (!attached) return
         val bounds = getScreenBounds()
+        val before = laidOutFor
+        var x = params.x
+        var y = params.y
+        if (before != null && before != bounds && before.width > 0 && before.height > 0) {
+            val onRight = x + buttonSize / 2 > before.width / 2
+            if (onRight) x = bounds.width - (before.width - x)
+            y = (y.toLong() * bounds.height / before.height).toInt()
+        }
+        laidOutFor = bounds
         val maxX = (bounds.width - buttonSize - edgeMargin).coerceAtLeast(edgeMargin)
         val maxY = (bounds.height - buttonSize - edgeMargin).coerceAtLeast(edgeMargin)
-        val x = params.x.coerceIn(edgeMargin, maxX)
-        val y = params.y.coerceIn(edgeMargin, maxY)
+        x = x.coerceIn(edgeMargin, maxX)
+        y = y.coerceIn(edgeMargin, maxY)
         if (x != params.x || y != params.y) {
             params.x = x
             params.y = y
             syncTargets()
             updateWindow(button, params)
+            if (chromeShown) {
+                hideChrome()
+                showChrome()
+            }
         }
     }
 
