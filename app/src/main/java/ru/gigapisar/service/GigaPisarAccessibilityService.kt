@@ -16,6 +16,7 @@ import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -448,7 +449,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private fun findFocusedEditable(event: AccessibilityEvent? = null): AccessibilityNodeInfo? {
         val eventSource = event?.source
         if (eventSource != null && eventSource.isEditable && eventSource.isEnabled && eventSource.isFocused) {
-            return eventSource
+            return if (forDictation(eventSource)) eventSource else null
         }
 
         return try {
@@ -456,7 +457,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                     ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
-            if (focused != null && focused.isEditable && focused.isEnabled) {
+            if (focused != null && focused.isEditable && focused.isEnabled && forDictation(focused)) {
                 focused
             } else {
                 null
@@ -464,6 +465,19 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /**
+     * A number pad, a phone number, a date or the dialer's digits are fields, but not ones
+     * anyone dictates into: no button there, and the volume key stays plain volume.
+     */
+    private fun forDictation(node: AccessibilityNodeInfo): Boolean {
+        val type = try { node.inputType } catch (_: Exception) { 0 }
+        when (type and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> return false
+        }
+        val pkg = node.packageName?.toString() ?: return true
+        return !pkg.contains("dialer", ignoreCase = true) && !pkg.endsWith(".phone") && !pkg.contains("incallui")
     }
 
     @Suppress("DEPRECATION")
