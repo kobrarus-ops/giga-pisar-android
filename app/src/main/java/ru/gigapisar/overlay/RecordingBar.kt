@@ -54,6 +54,14 @@ class RecordingBar(
     private var startedAt = SystemClock.uptimeMillis()
 
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+
+    /** Frosted glass: the strip is translucent and the window blurs what is behind it (Android 12+). */
+    var glass = false
+        set(value) {
+            field = value
+            barPaint.color = if (value) 0x9CFFFFFF.toInt() else Color.WHITE
+            invalidate()
+        }
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x22000000 }
     private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE53935.toInt() }
     private val timePaint =
