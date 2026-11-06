@@ -720,7 +720,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         // A failed command still puts in what was said before "Писарь".
         val body = parsed?.first ?: text
         return try {
-            val answer = Brain.transform(provider, key, model, body, parsed?.second)
+            val answer = Brain.transform(provider, key, model, body, parsed?.second, settings.shorten)
             BrainOutcome(answer, original = body.takeIf { it != answer })
         } catch (error: BrainException) {
             BrainOutcome(body, failure = error.message ?: "")

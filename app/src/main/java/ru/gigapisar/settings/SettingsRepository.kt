@@ -54,6 +54,7 @@ object SettingsRepository {
 
     private val brainEnabledKey = booleanPreferencesKey("brain_enabled")
     private val brainEveryTakeKey = booleanPreferencesKey("brain_every_take")
+    private val brainShortenKey = booleanPreferencesKey("brain_shorten")
     private val brainProviderKey = stringPreferencesKey("brain_provider")
     private val brainModelKey = stringPreferencesKey("brain_model")
 
@@ -222,6 +223,8 @@ object SettingsRepository {
     data class BrainSettings(
         val enabled: Boolean = false,
         val everyTake: Boolean = false,
+        /** "Edit on the fly" style: false tidies the take up, true makes a short message of it. */
+        val shorten: Boolean = false,
         val providerId: String? = null,
         val model: String? = null,
         /** The address of the local Ollama server in the home network. */
@@ -235,6 +238,7 @@ object SettingsRepository {
             BrainSettings(
                 enabled = preferences[brainEnabledKey] ?: false,
                 everyTake = preferences[brainEveryTakeKey] ?: false,
+                shorten = preferences[brainShortenKey] ?: false,
                 providerId = preferences[brainProviderKey],
                 model = preferences[brainModelKey],
                 ollamaUrl = preferences[ollamaKey()] ?: "",
@@ -259,6 +263,13 @@ object SettingsRepository {
         enabled: Boolean,
     ) {
         context.settingsDataStore.edit { it[brainEveryTakeKey] = enabled }
+    }
+
+    suspend fun setBrainShorten(
+        context: Context,
+        shorten: Boolean,
+    ) {
+        context.settingsDataStore.edit { it[brainShortenKey] = shorten }
     }
 
     /** Forgets a service's saved model along with its key. */

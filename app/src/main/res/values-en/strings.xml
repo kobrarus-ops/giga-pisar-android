@@ -96,7 +96,11 @@
     <string name="brain_switch">Brain</string>
     <string name="brain_switch_hint">Voice commands at the end of a phrase: “…Pisar, make it shorter”</string>
     <string name="brain_every_take">Edit on the fly</string>
-    <string name="brain_every_take_hint">Every take: punctuation, no “um” and repeats</string>
+    <string name="brain_every_take_hint">The Brain edits every take: tidies it up or shortens it</string>
+    <string name="brain_style_tidy">Tidy up</string>
+    <string name="brain_style_tidy_hint">Removes “um”, filler words and repeats, adds punctuation. Nothing is cut</string>
+    <string name="brain_style_short">Shorten</string>
+    <string name="brain_style_short_hint">Turns a long ramble into one clear thought without filler and repeats. Nothing important is lost</string>
     <string name="brain_privacy">With the Brain, the text goes to the chosen service over the internet. Without it, everything stays on the phone.</string>
     <string name="brain_key_hint">The service is recognized from the key, the model is picked for you.</string>
     <string name="brain_key_placeholder">API key</string>

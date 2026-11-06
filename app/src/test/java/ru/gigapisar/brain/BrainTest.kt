@@ -1,7 +1,9 @@
 package ru.gigapisar.brain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrainTest {
@@ -84,5 +86,16 @@ class BrainTest {
         )
         java.util.Locale.setDefault(java.util.Locale.ENGLISH)
         assertEquals("the service rejected the key", BrainClient.describeFailure(401, "{}"))
+    }
+
+    @Test
+    fun shortTakesAreOnlyCleanedUp() {
+        val long = "Слушай, я тут подумал, давай мы встретимся в четверг у метро, я принесу договор и паспорт"
+        assertTrue(Brain.shortens(long, shorten = true))
+        // The style is off: a cleanup whatever the length.
+        assertFalse(Brain.shortens(long, shorten = false))
+        // A sentence has nothing to cut.
+        assertFalse(Brain.shortens("Привет, буду через десять минут.", shorten = true))
+        assertFalse(Brain.shortens("   ", shorten = true))
     }
 }
