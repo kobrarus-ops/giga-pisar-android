@@ -100,6 +100,15 @@ class BrainTest {
     }
 
     @Test
+    fun lengthTargetIsAFifthOfTheTake() {
+        val take = (1..200).joinToString(" ") { "слово" }
+        assertTrue("около 40 слов" in Brain.lengthTarget(take))
+        assertTrue("200 слов" in Brain.lengthTarget(take))
+        // A short take is never pushed below a sentence.
+        assertTrue("около 12 слов" in Brain.lengthTarget("раз два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать тринадцать"))
+    }
+
+    @Test
     fun latinTakeIsToldToKeepItsLanguage() {
         assertTrue(Brain.mostlyLatin("Let's move the meeting to Friday at 10"))
         assertFalse(Brain.mostlyLatin("Давай перенесём встречу на пятницу, в Telegram напишу"))
