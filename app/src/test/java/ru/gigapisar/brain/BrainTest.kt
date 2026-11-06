@@ -100,6 +100,23 @@ class BrainTest {
     }
 
     @Test
+    fun coreRulesStayAroundARewrittenBody() {
+        for (kind in Brain.Kind.entries) {
+            val standard = Brain.instructions(kind)
+            val own = standard.text("Пиши как пират.")
+            assertTrue(own.startsWith(standard.head))
+            assertTrue(own.endsWith(standard.tail))
+            assertTrue("Пиши как пират." in own)
+            assertFalse(standard.body in own)
+            // Nothing of one's own, or only spaces: the standard text.
+            assertEquals(standard.text(), standard.text("   "))
+            assertTrue(standard.body in standard.text(null))
+        }
+        assertEquals(Brain.Custom(tidy = "a").of(Brain.Kind.TIDY), "a")
+        assertNull(Brain.Custom(tidy = "a").of(Brain.Kind.SHORTEN))
+    }
+
+    @Test
     fun lengthTargetIsAFifthOfTheTake() {
         val take = (1..200).joinToString(" ") { "слово" }
         assertTrue("около 40 слов" in Brain.lengthTarget(take))

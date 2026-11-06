@@ -97,6 +97,17 @@
     <string name="brain_switch_hint">Команды голосом в конце фразы: «…Писарь, сделай короче»</string>
     <string name="brain_every_take">Править на лету</string>
     <string name="brain_every_take_hint">Мозг правит каждую диктовку: причёсывает или сокращает</string>
+    <string name="brain_prompts">Инструкции</string>
+    <string name="brain_prompt_commands">Команды голосом</string>
+    <string name="brain_prompt_standard">Стандартная</string>
+    <string name="brain_prompt_own">Своя</string>
+    <string name="brain_prompt_title">Инструкция: %1$s</string>
+    <string name="brain_prompt_locked">Основные правила. Не меняются</string>
+    <string name="brain_prompt_yours">Подробности. Их можно менять</string>
+    <string name="brain_prompt_adds_command">В конце Писарь дописывает саму команду: то, что сказано после слова «Писарь».</string>
+    <string name="brain_prompt_adds_length">В конце Писарь дописывает ориентир по длине: примерно пятая часть слов диктовки.</string>
+    <string name="brain_prompt_reset">Вернуть стандартную</string>
+    <string name="brain_prompt_save">Сохранить</string>
     <string name="brain_style_tidy">Причесать</string>
     <string name="brain_style_tidy_hint">Убирает «э-э», слова-паразиты и повторы, ставит знаки препинания. Ничего не сокращает</string>
     <string name="brain_style_short">Сократить</string>

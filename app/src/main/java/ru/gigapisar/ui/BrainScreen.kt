@@ -68,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.gigapisar.R
+import ru.gigapisar.brain.Brain
 import ru.gigapisar.brain.BrainClient
 import ru.gigapisar.brain.BrainException
 import ru.gigapisar.brain.BrainProvider
@@ -133,6 +134,7 @@ internal fun BrainScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(BrainTab.CLOUD) }
+    var editing by rememberSaveable { mutableStateOf<Brain.Kind?>(null) }
     val ollamaActive = brain.providerId == BrainProviders.Ollama.id
     // Whoever had a local server chosen in a test build: the Brain quietly goes off.
     LaunchedEffect(ollamaActive) {
@@ -140,6 +142,10 @@ internal fun BrainScreen(
             SettingsRepository.setBrainEnabled(context, false)
             SettingsRepository.setBrainService(context, null, null)
         }
+    }
+    editing?.let { kind ->
+        BrainPromptEditor(kind = kind, custom = brain.prompts.of(kind), onClose = { editing = null })
+        return
     }
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(
@@ -158,9 +164,9 @@ internal fun BrainScreen(
             }
         }
         if (tab == BrainTab.CLOUD || !LOCAL_SERVER_ENABLED) {
-            BrainCloudTab(brain = brain)
+            BrainCloudTab(brain = brain, onEditPrompt = { editing = it })
         } else {
-            BrainLocalTab(brain = brain, ollamaActive = ollamaActive)
+            BrainLocalTab(brain = brain, ollamaActive = ollamaActive, onEditPrompt = { editing = it })
         }
     }
 }
@@ -180,6 +186,7 @@ private fun notInstalled(e: BrainException): Boolean = e.message?.contains("olla
 @Composable
 private fun BrainCloudTab(
     brain: SettingsRepository.BrainSettings,
+    onEditPrompt: (Brain.Kind) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -295,6 +302,7 @@ private fun BrainCloudTab(
         if (ready && brain.enabled && brain.everyTake) {
             EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
         }
+        if (ready && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 
         if (saved.isNotEmpty()) {
             SectionTitle(R.string.brain_services)
@@ -413,6 +421,7 @@ private fun BrainCloudTab(
 private fun BrainLocalTab(
     brain: SettingsRepository.BrainSettings,
     ollamaActive: Boolean,
+    onEditPrompt: (Brain.Kind) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -556,6 +565,7 @@ private fun BrainLocalTab(
         if (ollamaActive && brain.enabled && brain.everyTake) {
             EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
         }
+        if (ollamaActive && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 
         if (ollamaActive && models.isNotEmpty()) {
             SectionTitle(R.string.brain_models)

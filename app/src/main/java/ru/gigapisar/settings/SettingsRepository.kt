@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import ru.gigapisar.brain.Brain
 
 private val Context.settingsDataStore by preferencesDataStore(
     name = "giga_pisar_settings",
@@ -52,9 +53,14 @@ object SettingsRepository {
 
     private const val BRAIN_MODEL_PREFIX = "brain_model_for_"
 
+    /** A page or two of rules is plenty; more only slows the model down. */
+    const val BRAIN_PROMPT_MAX = 8000
+
     private val brainEnabledKey = booleanPreferencesKey("brain_enabled")
     private val brainEveryTakeKey = booleanPreferencesKey("brain_every_take")
     private val brainShortenKey = booleanPreferencesKey("brain_shorten")
+
+    private fun brainPromptKey(kind: Brain.Kind) = stringPreferencesKey("brain_prompt_" + kind.name.lowercase())
     private val brainProviderKey = stringPreferencesKey("brain_provider")
     private val brainModelKey = stringPreferencesKey("brain_model")
 
@@ -225,6 +231,8 @@ object SettingsRepository {
         val everyTake: Boolean = false,
         /** "Edit on the fly" style: false tidies the take up, true makes a short message of it. */
         val shorten: Boolean = false,
+        /** The parts of the instructions a person rewrote; the core rules are not stored. */
+        val prompts: Brain.Custom = Brain.Custom(),
         val providerId: String? = null,
         val model: String? = null,
         /** The address of the local Ollama server in the home network. */
@@ -239,6 +247,12 @@ object SettingsRepository {
                 enabled = preferences[brainEnabledKey] ?: false,
                 everyTake = preferences[brainEveryTakeKey] ?: false,
                 shorten = preferences[brainShortenKey] ?: false,
+                prompts =
+                    Brain.Custom(
+                        command = preferences[brainPromptKey(Brain.Kind.COMMAND)],
+                        tidy = preferences[brainPromptKey(Brain.Kind.TIDY)],
+                        shorten = preferences[brainPromptKey(Brain.Kind.SHORTEN)],
+                    ),
                 providerId = preferences[brainProviderKey],
                 model = preferences[brainModelKey],
                 ollamaUrl = preferences[ollamaKey()] ?: "",
@@ -270,6 +284,16 @@ object SettingsRepository {
         shorten: Boolean,
     ) {
         context.settingsDataStore.edit { it[brainShortenKey] = shorten }
+    }
+
+    /** A rewritten body of the instructions; null or the standard text puts the standard one back. */
+    suspend fun setBrainPrompt(
+        context: Context,
+        kind: Brain.Kind,
+        body: String?,
+    ) {
+        val own = body?.trim()?.take(BRAIN_PROMPT_MAX)?.takeIf { it.isNotEmpty() && it != Brain.instructions(kind).body.trim() }
+        context.settingsDataStore.edit { if (own == null) it.remove(brainPromptKey(kind)) else it[brainPromptKey(kind)] = own }
     }
 
     /** Forgets a service's saved model along with its key. */

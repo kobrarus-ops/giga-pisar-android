@@ -97,6 +97,17 @@
     <string name="brain_switch_hint">Voice commands at the end of a phrase: “…Pisar, make it shorter”</string>
     <string name="brain_every_take">Edit on the fly</string>
     <string name="brain_every_take_hint">The Brain edits every take: tidies it up or shortens it</string>
+    <string name="brain_prompts">Instructions</string>
+    <string name="brain_prompt_commands">Voice commands</string>
+    <string name="brain_prompt_standard">Standard</string>
+    <string name="brain_prompt_own">Your own</string>
+    <string name="brain_prompt_title">Instructions: %1$s</string>
+    <string name="brain_prompt_locked">Core rules. Not editable</string>
+    <string name="brain_prompt_yours">Details. Yours to change</string>
+    <string name="brain_prompt_adds_command">At the end Pisar adds the command itself: what is said after the word “Писарь”.</string>
+    <string name="brain_prompt_adds_length">At the end Pisar adds a length target: about a fifth of the words in the take.</string>
+    <string name="brain_prompt_reset">Restore the standard</string>
+    <string name="brain_prompt_save">Save</string>
     <string name="brain_style_tidy">Tidy up</string>
     <string name="brain_style_tidy_hint">Removes “um”, filler words and repeats, adds punctuation. Nothing is cut</string>
     <string name="brain_style_short">Shorten</string>
