@@ -15,12 +15,14 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ContentPasteOff
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Shop
@@ -69,6 +71,8 @@ internal fun SettingsList(
     vibrationEnabled: Boolean,
     noClipboard: Boolean = false,
     simpleSyntax: Boolean = false,
+    dropHesitations: Boolean = true,
+    noFinalPeriod: Boolean = false,
     fabScale: Float = 1f,
     fabGestures: Boolean = true,
     hiddenAppNames: List<String> = emptyList(),
@@ -81,6 +85,8 @@ internal fun SettingsList(
     onVibration: (Boolean) -> Unit,
     onNoClipboard: (Boolean) -> Unit = {},
     onSimpleSyntax: (Boolean) -> Unit = {},
+    onDropHesitations: (Boolean) -> Unit = {},
+    onNoFinalPeriod: (Boolean) -> Unit = {},
     onFabScale: (Float) -> Unit = {},
     onFabGestures: (Boolean) -> Unit = {},
     onOpenHiddenApps: () -> Unit = {},
@@ -144,6 +150,20 @@ internal fun SettingsList(
             subtitle = R.string.simple_syntax_hint,
             checked = simpleSyntax,
             onChange = onSimpleSyntax,
+        )
+        SwitchRow(
+            icon = Icons.Outlined.MoreHoriz,
+            title = R.string.no_final_period,
+            subtitle = R.string.no_final_period_hint,
+            checked = noFinalPeriod,
+            onChange = onNoFinalPeriod,
+        )
+        SwitchRow(
+            icon = Icons.Outlined.ContentCut,
+            title = R.string.drop_hesitations,
+            subtitle = R.string.drop_hesitations_hint,
+            checked = dropHesitations,
+            onChange = onDropHesitations,
         )
 
         SectionTitle(R.string.section_insertion)

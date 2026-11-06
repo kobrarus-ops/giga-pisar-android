@@ -95,6 +95,12 @@
     <string name="brain_key">Ключ сервиса</string>
     <string name="brain_switch">Мозг</string>
     <string name="brain_switch_hint">Команды голосом в конце фразы: «…Писарь, сделай короче»</string>
+    <string name="no_final_period">Без точки в конце</string>
+    <string name="no_final_period_hint">Диктовка вставляется без последней точки, сколько бы в ней ни было предложений. Вопросительный и восклицательный знаки остаются</string>
+    <string name="drop_hesitations">Убирать «э-э» и «м-м»</string>
+    <string name="drop_hesitations_hint">Вырезает из диктовки звуки-запинки: «э-э», «а-а», «м-м». Работает на самом телефоне, без интернета</string>
+    <string name="brain_skip_short">Короткие без правки</string>
+    <string name="brain_skip_short_hint">Диктовка короче 12 слов вставляется сразу и никуда не отправляется. Команды после слова «Писарь» выполняются всегда</string>
     <string name="brain_every_take">Править на лету</string>
     <string name="brain_every_take_hint">Мозг правит каждую диктовку: причёсывает или сокращает</string>
     <string name="brain_prompts">Инструкции</string>

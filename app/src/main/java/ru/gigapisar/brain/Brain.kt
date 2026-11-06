@@ -235,6 +235,18 @@ object Brain {
         return letters.isNotEmpty() && letters.count { it.code < 128 } * 2 > letters.length
     }
 
+    /**
+     * A take this short reads fine as dictated, so with "short takes at once" it skips the
+     * Brain and goes in without waiting for the network. The number is also in the
+     * brain_skip_short_hint strings.
+     */
+    const val SKIP_SHORT_WORDS = 12
+
+    fun tooShortToEdit(
+        body: String,
+        skipShort: Boolean,
+    ): Boolean = skipShort && wordCount(body) < SKIP_SHORT_WORDS
+
     /** Whether an "edit on the fly" take goes through the shortening instructions. */
     fun shortens(
         body: String,

@@ -95,6 +95,12 @@
     <string name="brain_key">Service key</string>
     <string name="brain_switch">Brain</string>
     <string name="brain_switch_hint">Voice commands at the end of a phrase: “…Pisar, make it shorter”</string>
+    <string name="no_final_period">No period at the end</string>
+    <string name="no_final_period_hint">The take goes in without its final period, however many sentences it has. Question and exclamation marks stay</string>
+    <string name="drop_hesitations">Remove “uh” and “um”</string>
+    <string name="drop_hesitations_hint">Cuts hesitation sounds like «э-э», «а-а», «м-м» out of the take. Works on the phone itself, offline</string>
+    <string name="brain_skip_short">Short takes unedited</string>
+    <string name="brain_skip_short_hint">A take under 12 words goes in at once and is not sent anywhere. Commands after the word “Pisar” always run</string>
     <string name="brain_every_take">Edit on the fly</string>
     <string name="brain_every_take_hint">The Brain edits every take: tidies it up or shortens it</string>
     <string name="brain_prompts">Instructions</string>

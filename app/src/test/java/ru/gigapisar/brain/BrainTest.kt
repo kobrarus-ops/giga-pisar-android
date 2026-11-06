@@ -131,4 +131,12 @@ class BrainTest {
         assertFalse(Brain.mostlyLatin("Давай перенесём встречу на пятницу, в Telegram напишу"))
         assertFalse(Brain.mostlyLatin("15:30, 45 000"))
     }
+
+    @Test
+    fun shortTakesSkipTheBrainOnlyWhenAsked() {
+        assertTrue(Brain.tooShortToEdit("Ок, буду через десять минут.", skipShort = true))
+        assertFalse(Brain.tooShortToEdit("Ок, буду через десять минут.", skipShort = false))
+        val long = "Слушай, я тут подумал насчёт дачи, давай всё-таки поедем в субботу, а не в воскресенье."
+        assertFalse(Brain.tooShortToEdit(long, skipShort = true))
+    }
 }

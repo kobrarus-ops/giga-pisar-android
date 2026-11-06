@@ -51,6 +51,12 @@ object SettingsRepository {
     private val fabGesturesKey =
         booleanPreferencesKey("fab_gestures")
 
+    private val dropHesitationsKey =
+        booleanPreferencesKey("drop_hesitations")
+
+    private val noFinalPeriodKey =
+        booleanPreferencesKey("no_final_period")
+
     private const val BRAIN_MODEL_PREFIX = "brain_model_for_"
 
     /** A page or two of rules is plenty; more only slows the model down. */
@@ -59,6 +65,7 @@ object SettingsRepository {
     private val brainEnabledKey = booleanPreferencesKey("brain_enabled")
     private val brainEveryTakeKey = booleanPreferencesKey("brain_every_take")
     private val brainShortenKey = booleanPreferencesKey("brain_shorten")
+    private val brainSkipShortKey = booleanPreferencesKey("brain_skip_short")
 
     private fun brainPromptKey(kind: Brain.Kind) = stringPreferencesKey("brain_prompt_" + kind.name.lowercase())
     private val brainProviderKey = stringPreferencesKey("brain_provider")
@@ -187,6 +194,32 @@ object SettingsRepository {
         context.settingsDataStore.edit { it[simpleSyntaxKey] = enabled }
     }
 
+    /** "Э-э", "а-а", "м-м" are cut out of every take, on the phone itself. */
+    fun dropHesitations(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { preferences ->
+            preferences[dropHesitationsKey] ?: true
+        }
+
+    suspend fun setDropHesitations(
+        context: Context,
+        enabled: Boolean,
+    ) {
+        context.settingsDataStore.edit { it[dropHesitationsKey] = enabled }
+    }
+
+    /** The take goes in without its final period, however many sentences it has. */
+    fun noFinalPeriod(context: Context): Flow<Boolean> =
+        context.settingsDataStore.data.map { preferences ->
+            preferences[noFinalPeriodKey] ?: false
+        }
+
+    suspend fun setNoFinalPeriod(
+        context: Context,
+        enabled: Boolean,
+    ) {
+        context.settingsDataStore.edit { it[noFinalPeriodKey] = enabled }
+    }
+
     fun vibrationEnabled(context: Context): Flow<Boolean> =
         context.settingsDataStore.data.map { preferences ->
             preferences[vibrationEnabledKey] ?: true
@@ -231,6 +264,8 @@ object SettingsRepository {
         val everyTake: Boolean = false,
         /** "Edit on the fly" style: false tidies the take up, true makes a short message of it. */
         val shorten: Boolean = false,
+        /** "Edit on the fly" leaves a short take alone: it goes in at once, with no request. */
+        val skipShort: Boolean = true,
         /** The parts of the instructions a person rewrote; the core rules are not stored. */
         val prompts: Brain.Custom = Brain.Custom(),
         val providerId: String? = null,
@@ -247,6 +282,7 @@ object SettingsRepository {
                 enabled = preferences[brainEnabledKey] ?: false,
                 everyTake = preferences[brainEveryTakeKey] ?: false,
                 shorten = preferences[brainShortenKey] ?: false,
+                skipShort = preferences[brainSkipShortKey] ?: true,
                 prompts =
                     Brain.Custom(
                         command = preferences[brainPromptKey(Brain.Kind.COMMAND)],
@@ -284,6 +320,13 @@ object SettingsRepository {
         shorten: Boolean,
     ) {
         context.settingsDataStore.edit { it[brainShortenKey] = shorten }
+    }
+
+    suspend fun setBrainSkipShort(
+        context: Context,
+        enabled: Boolean,
+    ) {
+        context.settingsDataStore.edit { it[brainSkipShortKey] = enabled }
     }
 
     /** A rewritten body of the instructions; null or the standard text puts the standard one back. */

@@ -39,4 +39,15 @@ class SimpleSyntaxTest {
         assertEquals("   ", SimpleSyntax.simplified("   "))
         assertEquals("уже просто", SimpleSyntax.simplified("уже просто"))
     }
+
+    @Test
+    fun finalPeriodGoesFromAnyTake() {
+        assertEquals("Привет. Как дела", SimpleSyntax.withoutFinalPeriod("Привет. Как дела."))
+        assertEquals("Буду в пять", SimpleSyntax.withoutFinalPeriod("Буду в пять. "))
+        assertEquals("Ты где?", SimpleSyntax.withoutFinalPeriod("Ты где?"))
+        assertEquals("Ну не знаю...", SimpleSyntax.withoutFinalPeriod("Ну не знаю..."))
+        assertEquals("Хлеб, молоко и т.д.", SimpleSyntax.withoutFinalPeriod("Хлеб, молоко и т.д."))
+        assertEquals("Хлеб, молоко и т. д.", SimpleSyntax.withoutFinalPeriod("Хлеб, молоко и т. д."))
+        assertEquals("Без точки", SimpleSyntax.withoutFinalPeriod("Без точки"))
+    }
 }

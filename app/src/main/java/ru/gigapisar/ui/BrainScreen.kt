@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dns
@@ -301,6 +302,14 @@ private fun BrainCloudTab(
         )
         if (ready && brain.enabled && brain.everyTake) {
             EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
+            SwitchItem(
+                icon = Icons.Outlined.Bolt,
+                title = R.string.brain_skip_short,
+                subtitle = R.string.brain_skip_short_hint,
+                checked = brain.skipShort,
+                enabled = true,
+                onChange = { on -> scope.launch { SettingsRepository.setBrainSkipShort(context, on) } },
+            )
         }
         if (ready && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 
@@ -564,6 +573,14 @@ private fun BrainLocalTab(
         )
         if (ollamaActive && brain.enabled && brain.everyTake) {
             EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
+            SwitchItem(
+                icon = Icons.Outlined.Bolt,
+                title = R.string.brain_skip_short,
+                subtitle = R.string.brain_skip_short_hint,
+                checked = brain.skipShort,
+                enabled = true,
+                onChange = { on -> scope.launch { SettingsRepository.setBrainSkipShort(context, on) } },
+            )
         }
         if (ollamaActive && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 

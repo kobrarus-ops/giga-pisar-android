@@ -49,6 +49,7 @@ import ru.gigapisar.settings.AppLanguage
 import ru.gigapisar.settings.InsertionMode
 import ru.gigapisar.settings.SettingsRepository
 import ru.gigapisar.speech.GigaAmOnnxRecognizer
+import ru.gigapisar.text.Hesitations
 import ru.gigapisar.text.SimpleSyntax
 import ru.gigapisar.update.Updates
 
@@ -99,6 +100,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private var fabGestures = true
     private var noClipboard = false
     private var simpleSyntax = false
+    private var dropHesitations = true
+    private var noFinalPeriod = false
     private var fabHiddenApps: Set<String> = emptySet()
     private var fabScale = 1f
     private var fabPreviewing = false
@@ -258,6 +261,16 @@ class GigaPisarAccessibilityService : AccessibilityService() {
             SettingsRepository
                 .simpleSyntax(this@GigaPisarAccessibilityService)
                 .collectLatest { enabled -> simpleSyntax = enabled }
+        }
+        serviceScope.launch {
+            SettingsRepository
+                .dropHesitations(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> dropHesitations = enabled }
+        }
+        serviceScope.launch {
+            SettingsRepository
+                .noFinalPeriod(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> noFinalPeriod = enabled }
         }
 
         serviceScope.launch {
@@ -595,10 +608,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                         return@launch
                     }
 
-                    val recognized =
+                    val heard =
                         recognizer.transcribe(
                             audio,
                         )
+                    // "Э-э" and "м-м" go before anything else looks at the text.
+                    val recognized = if (dropHesitations) Hesitations.removed(heard) else heard
                     // "Писарь, отмена" at the end: nothing goes in (#19 on macOS, the same on the phone).
                     if (Brain.cancelledBody(recognized) != null) {
                         withContext(Dispatchers.Main) {
@@ -611,7 +626,14 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                     // A password is never sent to a cloud service.
                     val brained = if (focusedNode?.isPassword == true) BrainOutcome(recognized) else applyBrain(recognized)
                     // Only plain dictation is simplified; what the Brain wrote goes in exactly as it is.
-                    val text = if (simpleSyntax && brained.original == null) SimpleSyntax.simplified(brained.text) else brained.text
+                    val styled = if (simpleSyntax && brained.original == null) SimpleSyntax.simplified(brained.text) else brained.text
+                    val text = if (noFinalPeriod) SimpleSyntax.withoutFinalPeriod(styled) else styled
+                    // What "Вернуть" puts back gets the same ending; an edit that came down to that
+                    // one period is no edit at all.
+                    val original =
+                        brained.original
+                            ?.let { if (noFinalPeriod) SimpleSyntax.withoutFinalPeriod(it) else it }
+                            ?.takeIf { it != text }
                     val brainFailure = brained.failure
 
                     withContext(
@@ -650,7 +672,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                                             focusedFieldBounds(),
                                             8000,
                                         ) { inserter.putToClipboard(text) }
-                                    } else if (brainFailure == null && brained.original == null) {
+                                    } else if (brainFailure == null && original == null) {
                                         pill.hide()
                                     }
                                     if (inserted) armSendKey()
@@ -658,7 +680,6 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                             }
                         }
 
-                        val original = brained.original
                         if (brainFailure != null && text.isNotBlank()) {
                             // The text is in as recognized; say why the Brain did not edit it.
                             notifyUser(ui().getString(R.string.brain_failed, brainFailure), 6000)
@@ -719,6 +740,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         if (parsed == null && !settings.everyTake) return BrainOutcome(text)
         // A failed command still puts in what was said before "Писарь".
         val body = parsed?.first ?: text
+        // A short take is fine as dictated: no request, no wait. A command always runs.
+        if (parsed == null && Brain.tooShortToEdit(body, settings.skipShort)) return BrainOutcome(text)
         return try {
             val answer = Brain.transform(provider, key, model, body, parsed?.second, settings.shorten, settings.prompts)
             BrainOutcome(answer, original = body.takeIf { it != answer })

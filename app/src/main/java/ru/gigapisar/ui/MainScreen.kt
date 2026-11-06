@@ -49,6 +49,8 @@ fun MainScreen(activity: ComponentActivity) {
     var fabGestures by remember { mutableStateOf(true) }
     var noClipboard by remember { mutableStateOf(false) }
     var simpleSyntax by remember { mutableStateOf(false) }
+    var dropHesitations by remember { mutableStateOf(true) }
+    var noFinalPeriod by remember { mutableStateOf(false) }
     var fabScale by remember { mutableStateOf(1f) }
     var fabHidden by remember { mutableStateOf<Set<String>>(emptySet()) }
     var brain by remember { mutableStateOf(SettingsRepository.BrainSettings()) }
@@ -97,6 +99,12 @@ fun MainScreen(activity: ComponentActivity) {
     }
     LaunchedEffect(context) {
         SettingsRepository.simpleSyntax(context).collect { simpleSyntax = it }
+    }
+    LaunchedEffect(context) {
+        SettingsRepository.dropHesitations(context).collect { dropHesitations = it }
+    }
+    LaunchedEffect(context) {
+        SettingsRepository.noFinalPeriod(context).collect { noFinalPeriod = it }
     }
     LaunchedEffect(context) {
         SettingsRepository.brain(context).collect { brain = it }
@@ -187,6 +195,10 @@ fun MainScreen(activity: ComponentActivity) {
                     onNoClipboard = { scope.launch { SettingsRepository.setNoClipboard(context, it) } },
                     simpleSyntax = simpleSyntax,
                     onSimpleSyntax = { scope.launch { SettingsRepository.setSimpleSyntax(context, it) } },
+                    dropHesitations = dropHesitations,
+                    onDropHesitations = { scope.launch { SettingsRepository.setDropHesitations(context, it) } },
+                    noFinalPeriod = noFinalPeriod,
+                    onNoFinalPeriod = { scope.launch { SettingsRepository.setNoFinalPeriod(context, it) } },
                     fabScale = fabScale,
                     onFabScale = { scope.launch { SettingsRepository.setFabScale(context, it) } },
                     fabGestures = fabGestures,
