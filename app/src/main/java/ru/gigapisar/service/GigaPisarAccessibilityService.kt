@@ -768,7 +768,38 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 if (pillOffersUndo && undoShownAt == shownAt) pill.moveTo(focusedFieldBounds())
             }, delay)
         }
+        // The offer makes sense only while the text is still in the field. Once it is sent
+        // or wiped there is nothing to put back, and some messengers clear the field after
+        // sending without a text-changed event, so the field itself is looked at.
+        val probe = answer.trim().take(60)
+        val watch =
+            object : Runnable {
+                var seen = false
+
+                override fun run() {
+                    if (!pillOffersUndo || undoShownAt != shownAt || !pill.showsAction) return
+                    if (fieldText()?.contains(probe) == true) {
+                        seen = true
+                    } else if (seen) {
+                        pill.hide()
+                        return
+                    }
+                    mainHandler.postDelayed(this, UNDO_WATCH_MS)
+                }
+            }
+        if (probe.isNotEmpty()) mainHandler.postDelayed(watch, UNDO_WATCH_MS)
     }
+
+    /** What the focused field holds right now; a hint shown in an empty field is not text. */
+    private fun fieldText(): String? =
+        focusedNode?.let { node ->
+            try {
+                node.refresh()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && node.isShowingHintText) "" else node.text?.toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     /**
      * Strings in the language picked in the settings. Taken fresh each time: the service
@@ -979,6 +1010,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                     sendArmedUntil = 0L
                     if (performSend()) {
                         buzz()
+                        // The message is gone: there is nothing left to put back.
+                        if (pillOffersUndo && pill.showsAction) pill.hide()
                     } else {
                         // No send button here: the press stays an ordinary volume-up, and the pill says why.
                         audioManager.adjustStreamVolume(
@@ -1044,5 +1077,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
         /** How long "Вернуть" stays offered after a Brain edit. */
         private const val UNDO_OFFER_MS = 6000L
+
+        /** How often the field is checked for the text the undo offer is about. */
+        private const val UNDO_WATCH_MS = 300L
     }
 }

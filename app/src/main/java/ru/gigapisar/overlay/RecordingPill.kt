@@ -107,12 +107,12 @@ class RecordingPill(
     val showsAction: Boolean
         get() = attached && touchable
 
-    /** The screen changed under the pill: put it back where it belongs. */
-    /** The field under the pill changed its size (text went in and it grew): follow it. */
+    /** The field under the offer changed its size (text went in and it grew): follow it. */
     fun moveTo(anchor: Rect?) {
-        if (attached && anchor != null && !anchor.isEmpty) place(anchor)
+        if (showsAction && anchor != null && !anchor.isEmpty) place(anchor)
     }
 
+    /** The screen changed under the pill: put it back where it belongs. */
     fun onScreenChanged() {
         if (attached) place(lastAnchor)
     }
