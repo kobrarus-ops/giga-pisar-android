@@ -98,4 +98,11 @@ class BrainTest {
         assertFalse(Brain.shortens("Привет, буду через десять минут.", shorten = true))
         assertFalse(Brain.shortens("   ", shorten = true))
     }
+
+    @Test
+    fun latinTakeIsToldToKeepItsLanguage() {
+        assertTrue(Brain.mostlyLatin("Let's move the meeting to Friday at 10"))
+        assertFalse(Brain.mostlyLatin("Давай перенесём встречу на пятницу, в Telegram напишу"))
+        assertFalse(Brain.mostlyLatin("15:30, 45 000"))
+    }
 }

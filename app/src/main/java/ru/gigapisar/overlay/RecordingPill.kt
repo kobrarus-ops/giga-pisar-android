@@ -108,6 +108,11 @@ class RecordingPill(
         get() = attached && touchable
 
     /** The screen changed under the pill: put it back where it belongs. */
+    /** The field under the pill changed its size (text went in and it grew): follow it. */
+    fun moveTo(anchor: Rect?) {
+        if (attached && anchor != null && !anchor.isEmpty) place(anchor)
+    }
+
     fun onScreenChanged() {
         if (attached) place(lastAnchor)
     }

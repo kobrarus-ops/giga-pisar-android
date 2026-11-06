@@ -760,6 +760,14 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 )
             }
         }
+        // A long text makes the field taller a moment after it goes in. The offer has to end
+        // up above the field, not on top of the text the person wants to read.
+        val shownAt = undoShownAt
+        for (delay in longArrayOf(150, 500, 1200)) {
+            mainHandler.postDelayed({
+                if (pillOffersUndo && undoShownAt == shownAt) pill.moveTo(focusedFieldBounds())
+            }, delay)
+        }
     }
 
     /**
@@ -836,6 +844,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private fun focusedFieldBounds(): Rect? =
         focusedNode?.let { node ->
             try {
+                // The node keeps the size it had when it was found; a field grows as text goes in.
+                node.refresh()
                 Rect().also(node::getBoundsInScreen)
             } catch (_: Exception) {
                 null
