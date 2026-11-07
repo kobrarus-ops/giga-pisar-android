@@ -2,6 +2,7 @@ package ru.gigapisar.service
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.InputMethod
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -470,10 +471,13 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                     ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
-            if (focused != null && focused.isEditable && focused.isEnabled && forDictation(focused)) {
-                focused
-            } else {
-                null
+            when {
+                focused == null || !focused.isEnabled -> null
+                focused.isEditable -> focused.takeIf { forDictation(it) }
+                // Samsung Notes draws its own editor: the system sees no field, only the
+                // keyboard channel the editor keeps open. That channel says where to type.
+                keyboardEditorOpen(focused) -> focused
+                else -> null
             }
         } catch (_: Throwable) {
             null
@@ -486,12 +490,57 @@ class GigaPisarAccessibilityService : AccessibilityService() {
      */
     private fun forDictation(node: AccessibilityNodeInfo): Boolean {
         val type = try { node.inputType } catch (_: Exception) { 0 }
+        val pkg = node.packageName?.toString()
+        return forDictation(type, pkg)
+    }
+
+    private fun forDictation(
+        type: Int,
+        pkg: String?,
+    ): Boolean {
         when (type and InputType.TYPE_MASK_CLASS) {
             InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> return false
         }
-        val pkg = node.packageName?.toString() ?: return true
+        pkg ?: return true
         return !pkg.contains("dialer", ignoreCase = true) && !pkg.endsWith(".phone") && !pkg.contains("incallui")
     }
+
+    /**
+     * Android 13+: whether the app that holds [focused] has a text editor connected to the
+     * keyboard right now. A connected editor with a text input type is a place to dictate even
+     * when the view that has the focus is not a text field to the system.
+     */
+    private fun keyboardEditorOpen(focused: AccessibilityNodeInfo): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return try {
+            val method = inputMethod ?: return false
+            val editor = method.currentInputEditorInfo ?: return false
+            method.currentInputConnection != null &&
+                editor.packageName == focused.packageName?.toString() &&
+                editor.inputType != InputType.TYPE_NULL &&
+                forDictation(editor.inputType, editor.packageName)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** The keyboard channel opening or closing is a focus change the events above do not report. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onCreateInputMethod(): InputMethod =
+        object : InputMethod(this) {
+            override fun onStartInput(
+                attribute: android.view.inputmethod.EditorInfo,
+                restarting: Boolean,
+            ) {
+                super.onStartInput(attribute, restarting)
+                if (insertionMode == InsertionMode.TEXT_FIELD) mainHandler.post { updateFocusedNode() }
+            }
+
+            override fun onFinishInput() {
+                super.onFinishInput()
+                if (insertionMode == InsertionMode.TEXT_FIELD) mainHandler.post { updateFocusedNode() }
+            }
+        }
 
     @Suppress("DEPRECATION")
     private fun recycleNode(node: AccessibilityNodeInfo?) {
