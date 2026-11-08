@@ -3,6 +3,8 @@ package ru.gigapisar.insertion
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.InputMethod
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
@@ -55,6 +57,8 @@ class TextInserter(
     class Insertion(
         val node: AccessibilityNodeInfo,
         val start: Int,
+        /** Typed over the keyboard channel: the field itself is not ours to read or write. */
+        val keyboard: Boolean = false,
     )
 
     /**
@@ -71,11 +75,15 @@ class TextInserter(
     ): Insertion? {
         val node = findFocusedNode() ?: fallbackNode ?: return null
         return try {
-            if (!node.isEditable || !node.isEnabled) return null
+            if (!node.isEnabled) return null
+            // Editors that draw their own text view (Samsung Notes) are not editable to us at
+            // all; what they do have is the keyboard channel.
+            if (!node.isEditable) return commitThroughKeyboard(node, text)
             // With paste as the fallback, wait only briefly; without it, a late field gets more time
             // before the user is offered to copy (Telegram on Honor shows the text after ~1 s).
             insertDirectly(node, text, if (allowPaste) VERIFY_SHORT_MS else VERIFY_LONG_MS)
-                ?: if (allowPaste) paste(node, text) else null
+                ?: (if (allowPaste) paste(node, text) else null)
+                ?: commitThroughKeyboard(node, text)
         } catch (_: Throwable) {
             null
         }
@@ -91,6 +99,7 @@ class TextInserter(
         original: String,
     ): Boolean =
         try {
+            if (insertion.keyboard) return replaceThroughKeyboard(inserted, original)
             val node = insertion.node
             if (!node.refresh()) return false
             val current = fieldText(node)
@@ -105,6 +114,45 @@ class TextInserter(
         } catch (_: Throwable) {
             false
         }
+
+    /**
+     * The channel the keyboard types through (Android 13+): open while some app's editor takes
+     * input, whatever the app draws the editor with. Null on older Android and with no editor.
+     */
+    private fun keyboardConnection(): InputMethod.AccessibilityInputConnection? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                (context as? AccessibilityService)?.inputMethod?.currentInputConnection
+            } catch (_: Throwable) {
+                null
+            }
+        } else {
+            null
+        }
+
+    /** Types [text] at the cursor over the keyboard channel; the clipboard is not touched. */
+    private fun commitThroughKeyboard(
+        node: AccessibilityNodeInfo,
+        text: String,
+    ): Insertion? {
+        val connection = keyboardConnection() ?: return null
+        connection.commitText(text, 1, null)
+        return Insertion(node, -1, keyboard = true)
+    }
+
+    /** The text is still right before the cursor: it goes, and the original takes its place. */
+    private fun replaceThroughKeyboard(
+        inserted: String,
+        original: String,
+    ): Boolean {
+        val connection = keyboardConnection() ?: return false
+        val around = connection.getSurroundingText(inserted.length, 0, 0) ?: return false
+        val before = around.text.substring(0, around.selectionStart.coerceIn(0, around.text.length))
+        if (before != inserted) return false
+        connection.deleteSurroundingText(inserted.length, 0)
+        connection.commitText(original, 1, null)
+        return true
+    }
 
     private fun insertDirectly(
         node: AccessibilityNodeInfo,

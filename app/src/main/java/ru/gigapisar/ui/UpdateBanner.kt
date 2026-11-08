@@ -15,6 +15,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -104,15 +105,14 @@ internal fun UpdateBanner(modifier: Modifier = Modifier) {
                     Text(stringResource(R.string.update_allow_install), style = MaterialTheme.typography.bodySmall)
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            val play = remember { Updates.playStoreIntent(context) }
             if (p == null) {
-                Button(
-                    onClick = {
-                        error = null
-                        val file = downloaded
-                        if (file != null && file.exists()) {
-                            proceed(file)
-                            return@Button
-                        }
+                val updateFromFile: () -> Unit = {
+                    error = null
+                    val file = downloaded
+                    if (file != null && file.exists()) {
+                        proceed(file)
+                    } else {
                         progress = 0
                         scope.launch {
                             try {
@@ -131,9 +131,29 @@ internal fun UpdateBanner(modifier: Modifier = Modifier) {
                                 }
                             }
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(if (needsPermission) R.string.update_allow_button else R.string.update_button)) }
+                    }
+                }
+                if (play != null && !needsPermission) {
+                    // The store is the way forward: one install there and updates come by themselves.
+                    Text(stringResource(R.string.update_play_hint), style = MaterialTheme.typography.bodySmall)
+                    Button(
+                        onClick = {
+                            try {
+                                context.startActivity(play)
+                            } catch (_: Exception) {
+                                // The store is there but would not open: the file still works.
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.update_play_button)) }
+                    TextButton(onClick = updateFromFile, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.update_file_button))
+                    }
+                } else {
+                    Button(onClick = updateFromFile, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(if (needsPermission) R.string.update_allow_button else R.string.update_button))
+                    }
+                }
             }
         }
     }

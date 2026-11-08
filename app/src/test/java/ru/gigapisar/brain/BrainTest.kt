@@ -1,7 +1,9 @@
 package ru.gigapisar.brain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrainTest {
@@ -84,5 +86,57 @@ class BrainTest {
         )
         java.util.Locale.setDefault(java.util.Locale.ENGLISH)
         assertEquals("the service rejected the key", BrainClient.describeFailure(401, "{}"))
+    }
+
+    @Test
+    fun shortTakesAreOnlyCleanedUp() {
+        val long = "Слушай, я тут подумал, давай мы встретимся в четверг у метро, я принесу договор и паспорт"
+        assertTrue(Brain.shortens(long, shorten = true))
+        // The style is off: a cleanup whatever the length.
+        assertFalse(Brain.shortens(long, shorten = false))
+        // A sentence has nothing to cut.
+        assertFalse(Brain.shortens("Привет, буду через десять минут.", shorten = true))
+        assertFalse(Brain.shortens("   ", shorten = true))
+    }
+
+    @Test
+    fun coreRulesStayAroundARewrittenBody() {
+        for (kind in Brain.Kind.entries) {
+            val standard = Brain.instructions(kind)
+            val own = standard.text("Пиши как пират.")
+            assertTrue(own.startsWith(standard.head))
+            assertTrue(own.endsWith(standard.tail))
+            assertTrue("Пиши как пират." in own)
+            assertFalse(standard.body in own)
+            // Nothing of one's own, or only spaces: the standard text.
+            assertEquals(standard.text(), standard.text("   "))
+            assertTrue(standard.body in standard.text(null))
+        }
+        assertEquals(Brain.Custom(tidy = "a").of(Brain.Kind.TIDY), "a")
+        assertNull(Brain.Custom(tidy = "a").of(Brain.Kind.SHORTEN))
+    }
+
+    @Test
+    fun lengthTargetIsAFifthOfTheTake() {
+        val take = (1..200).joinToString(" ") { "слово" }
+        assertTrue("около 40 слов" in Brain.lengthTarget(take))
+        assertTrue("200 слов" in Brain.lengthTarget(take))
+        // A short take is never pushed below a sentence.
+        assertTrue("около 12 слов" in Brain.lengthTarget("раз два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать тринадцать"))
+    }
+
+    @Test
+    fun latinTakeIsToldToKeepItsLanguage() {
+        assertTrue(Brain.mostlyLatin("Let's move the meeting to Friday at 10"))
+        assertFalse(Brain.mostlyLatin("Давай перенесём встречу на пятницу, в Telegram напишу"))
+        assertFalse(Brain.mostlyLatin("15:30, 45 000"))
+    }
+
+    @Test
+    fun shortTakesSkipTheBrainOnlyWhenAsked() {
+        assertTrue(Brain.tooShortToEdit("Ок, буду через десять минут.", skipShort = true))
+        assertFalse(Brain.tooShortToEdit("Ок, буду через десять минут.", skipShort = false))
+        val long = "Слушай, я тут подумал насчёт дачи, давай всё-таки поедем в субботу, а не в воскресенье."
+        assertFalse(Brain.tooShortToEdit(long, skipShort = true))
     }
 }

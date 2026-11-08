@@ -29,4 +29,19 @@ object SimpleSyntax {
         }
         return out
     }
+
+    /**
+     * "No period at the end": the take loses its final period, however many sentences it has.
+     * A question mark, an exclamation mark and an ellipsis carry meaning and stay.
+     */
+    fun withoutFinalPeriod(text: String): String {
+        val t = text.trimEnd()
+        if (!t.endsWith(".") || t.endsWith("..")) return text
+        val body = t.dropLast(1)
+        val lastWord = body.substringAfterLast('\n').substringAfterLast(' ')
+        // "и т.д." and "и т. д." keep theirs: that period belongs to the abbreviation.
+        if (lastWord.contains('.')) return text
+        if (lastWord.length == 1 && lastWord[0].isLowerCase() && body.dropLast(1).trimEnd().endsWith(".")) return text
+        return body
+    }
 }

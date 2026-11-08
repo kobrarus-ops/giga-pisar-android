@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dns
@@ -68,6 +69,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.gigapisar.R
+import ru.gigapisar.brain.Brain
 import ru.gigapisar.brain.BrainClient
 import ru.gigapisar.brain.BrainException
 import ru.gigapisar.brain.BrainProvider
@@ -133,6 +135,7 @@ internal fun BrainScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(BrainTab.CLOUD) }
+    var editing by rememberSaveable { mutableStateOf<Brain.Kind?>(null) }
     val ollamaActive = brain.providerId == BrainProviders.Ollama.id
     // Whoever had a local server chosen in a test build: the Brain quietly goes off.
     LaunchedEffect(ollamaActive) {
@@ -140,6 +143,10 @@ internal fun BrainScreen(
             SettingsRepository.setBrainEnabled(context, false)
             SettingsRepository.setBrainService(context, null, null)
         }
+    }
+    editing?.let { kind ->
+        BrainPromptEditor(kind = kind, custom = brain.prompts.of(kind), onClose = { editing = null })
+        return
     }
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(
@@ -158,9 +165,9 @@ internal fun BrainScreen(
             }
         }
         if (tab == BrainTab.CLOUD || !LOCAL_SERVER_ENABLED) {
-            BrainCloudTab(brain = brain)
+            BrainCloudTab(brain = brain, onEditPrompt = { editing = it })
         } else {
-            BrainLocalTab(brain = brain, ollamaActive = ollamaActive)
+            BrainLocalTab(brain = brain, ollamaActive = ollamaActive, onEditPrompt = { editing = it })
         }
     }
 }
@@ -180,6 +187,7 @@ private fun notInstalled(e: BrainException): Boolean = e.message?.contains("olla
 @Composable
 private fun BrainCloudTab(
     brain: SettingsRepository.BrainSettings,
+    onEditPrompt: (Brain.Kind) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -292,6 +300,18 @@ private fun BrainCloudTab(
             enabled = ready && brain.enabled,
             onChange = { on -> scope.launch { SettingsRepository.setBrainEveryTake(context, on) } },
         )
+        if (ready && brain.enabled && brain.everyTake) {
+            EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
+            SwitchItem(
+                icon = Icons.Outlined.Bolt,
+                title = R.string.brain_skip_short,
+                subtitle = R.string.brain_skip_short_hint,
+                checked = brain.skipShort,
+                enabled = true,
+                onChange = { on -> scope.launch { SettingsRepository.setBrainSkipShort(context, on) } },
+            )
+        }
+        if (ready && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 
         if (saved.isNotEmpty()) {
             SectionTitle(R.string.brain_services)
@@ -410,6 +430,7 @@ private fun BrainCloudTab(
 private fun BrainLocalTab(
     brain: SettingsRepository.BrainSettings,
     ollamaActive: Boolean,
+    onEditPrompt: (Brain.Kind) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -550,6 +571,18 @@ private fun BrainLocalTab(
             enabled = ollamaActive && brain.enabled,
             onChange = { on -> scope.launch { SettingsRepository.setBrainEveryTake(context, on) } },
         )
+        if (ollamaActive && brain.enabled && brain.everyTake) {
+            EveryTakeStyle(shorten = brain.shorten) { shorten -> scope.launch { SettingsRepository.setBrainShorten(context, shorten) } }
+            SwitchItem(
+                icon = Icons.Outlined.Bolt,
+                title = R.string.brain_skip_short,
+                subtitle = R.string.brain_skip_short_hint,
+                checked = brain.skipShort,
+                enabled = true,
+                onChange = { on -> scope.launch { SettingsRepository.setBrainSkipShort(context, on) } },
+            )
+        }
+        if (ollamaActive && brain.enabled) BrainPromptRows(prompts = brain.prompts, onOpen = onEditPrompt)
 
         if (ollamaActive && models.isNotEmpty()) {
             SectionTitle(R.string.brain_models)
@@ -724,6 +757,25 @@ private fun SwitchItem(
         trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         modifier = Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
+}
+
+/** What "edit on the fly" does with a take: tidies it up or makes a short message of it. */
+@Composable
+private fun EveryTakeStyle(
+    shorten: Boolean,
+    onPick: (Boolean) -> Unit,
+) {
+    for ((value, title, hint) in listOf(
+        Triple(false, R.string.brain_style_tidy, R.string.brain_style_tidy_hint),
+        Triple(true, R.string.brain_style_short, R.string.brain_style_short_hint),
+    )) {
+        ListItem(
+            headlineContent = { Text(stringResource(title)) },
+            supportingContent = { Text(stringResource(hint)) },
+            leadingContent = { RadioButton(selected = shorten == value, onClick = null) },
+            modifier = Modifier.selectable(selected = shorten == value, role = Role.RadioButton) { onPick(value) },
+        )
+    }
 }
 
 private fun openUrl(

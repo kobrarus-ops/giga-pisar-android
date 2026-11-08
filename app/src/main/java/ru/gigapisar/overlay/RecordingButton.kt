@@ -457,18 +457,23 @@ class RecordingButton(
         val c = width / 2f
         val r = circleRadius
         val alpha = if (dimmed) 115 else 255
+        if (barSide != 0 && state == State.RECORDING) {
+            // The end of the recording bar, under the circle (see [barSide]). Drawn in screen
+            // pixels: neither the size slider nor the press shrink it, so it meets the bar
+            // with no notch (the press scales the whole view about its centre).
+            canvas.save()
+            canvas.scale(1f / scaleX, 1f / scaleY, c, c)
+            val h = barHeightDp * density / 2f
+            val edge = if (barSide < 0) -2f else width + 2f
+            canvas.drawRect(minOf(edge, c), c - h, maxOf(edge, c), c + h, barPaint)
+            canvas.restore()
+        }
+
         canvas.save()
         canvas.scale(sizeScale, sizeScale, c, c)
         val t = (SystemClock.uptimeMillis() - animationStart).toFloat()
 
         val red = state == State.RECORDING
-
-        if (barSide != 0 && state == State.RECORDING) {
-            // The end of the recording bar, under the circle (see [barSide]).
-            val h = barHeightDp * density / 2f
-            val edge = if (barSide < 0) c - width / (2f * sizeScale) else c + width / (2f * sizeScale)
-            canvas.drawRect(minOf(edge, c), c - h, maxOf(edge, c), c + h, barPaint)
-        }
 
         if (state == State.RECORDING) {
             // Glow that follows the voice, on the same dB scale as the pill.

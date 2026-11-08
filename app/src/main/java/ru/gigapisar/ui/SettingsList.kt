@@ -10,18 +10,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.ContentPasteOff
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Shop
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.SwipeUp
 import androidx.compose.material.icons.outlined.TextFormat
@@ -48,6 +52,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import ru.gigapisar.R
+import ru.gigapisar.update.Updates
+import ru.gigapisar.BuildConfig
 import ru.gigapisar.settings.AppLanguage
 import ru.gigapisar.settings.InsertionMode
 
@@ -61,9 +67,12 @@ internal fun SettingsList(
     insertionMode: InsertionMode,
     virtualButtonVisible: Boolean,
     volumeKeyEnabled: Boolean,
+    sendKey: Boolean = false,
     vibrationEnabled: Boolean,
     noClipboard: Boolean = false,
     simpleSyntax: Boolean = false,
+    dropHesitations: Boolean = true,
+    noFinalPeriod: Boolean = false,
     fabScale: Float = 1f,
     fabGestures: Boolean = true,
     hiddenAppNames: List<String> = emptyList(),
@@ -72,9 +81,12 @@ internal fun SettingsList(
     onInsertionMode: (InsertionMode) -> Unit,
     onVirtualButton: (Boolean) -> Unit,
     onVolumeKey: (Boolean) -> Unit,
+    onSendKey: (Boolean) -> Unit = {},
     onVibration: (Boolean) -> Unit,
     onNoClipboard: (Boolean) -> Unit = {},
     onSimpleSyntax: (Boolean) -> Unit = {},
+    onDropHesitations: (Boolean) -> Unit = {},
+    onNoFinalPeriod: (Boolean) -> Unit = {},
     onFabScale: (Float) -> Unit = {},
     onFabGestures: (Boolean) -> Unit = {},
     onOpenHiddenApps: () -> Unit = {},
@@ -116,6 +128,15 @@ internal fun SettingsList(
             checked = volumeKeyEnabled,
             onChange = onVolumeKey,
         )
+        if (volumeKeyEnabled && insertionMode == InsertionMode.TEXT_FIELD) {
+            SwitchRow(
+                icon = Icons.AutoMirrored.Outlined.Send,
+                title = R.string.send_key,
+                subtitle = R.string.send_key_hint,
+                checked = sendKey,
+                onChange = onSendKey,
+            )
+        }
         SwitchRow(
             icon = Icons.Outlined.Vibration,
             title = R.string.vibration,
@@ -129,6 +150,20 @@ internal fun SettingsList(
             subtitle = R.string.simple_syntax_hint,
             checked = simpleSyntax,
             onChange = onSimpleSyntax,
+        )
+        SwitchRow(
+            icon = Icons.Outlined.MoreHoriz,
+            title = R.string.no_final_period,
+            subtitle = R.string.no_final_period_hint,
+            checked = noFinalPeriod,
+            onChange = onNoFinalPeriod,
+        )
+        SwitchRow(
+            icon = Icons.Outlined.ContentCut,
+            title = R.string.drop_hesitations,
+            subtitle = R.string.drop_hesitations_hint,
+            checked = dropHesitations,
+            onChange = onDropHesitations,
         )
 
         SectionTitle(R.string.section_insertion)
@@ -204,6 +239,21 @@ internal fun SettingsList(
             title = stringResource(R.string.about_share),
             onClick = { share(context) },
         )
+        val play = remember { if (BuildConfig.SELF_UPDATE) Updates.playStoreIntent(context) else null }
+        if (play != null) {
+            InfoRow(
+                icon = Icons.Outlined.Shop,
+                title = stringResource(R.string.about_play),
+                subtitle = stringResource(R.string.about_play_hint),
+                onClick = {
+                    try {
+                        context.startActivity(play)
+                    } catch (_: Exception) {
+                        // The store is there but would not open.
+                    }
+                },
+            )
+        }
     }
 }
 

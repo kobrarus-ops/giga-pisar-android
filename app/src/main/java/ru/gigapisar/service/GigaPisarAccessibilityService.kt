@@ -2,8 +2,10 @@ package ru.gigapisar.service
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.InputMethod
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.media.AudioManager
@@ -15,6 +17,7 @@ import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -37,6 +40,7 @@ import ru.gigapisar.brain.BrainException
 import ru.gigapisar.brain.BrainProviders
 import ru.gigapisar.brain.KeyVault
 import ru.gigapisar.brain.brainRussian
+import ru.gigapisar.insertion.SendButton
 import ru.gigapisar.insertion.TextInserter
 import ru.gigapisar.model.ModelManager
 import ru.gigapisar.overlay.FabPreview
@@ -46,6 +50,7 @@ import ru.gigapisar.settings.AppLanguage
 import ru.gigapisar.settings.InsertionMode
 import ru.gigapisar.settings.SettingsRepository
 import ru.gigapisar.speech.GigaAmOnnxRecognizer
+import ru.gigapisar.text.Hesitations
 import ru.gigapisar.text.SimpleSyntax
 import ru.gigapisar.update.Updates
 
@@ -91,10 +96,13 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
     private var virtualButtonEnabled = true
     private var volumeKeyEnabled = true
+    private var sendKeyEnabled = false
     private var vibrationEnabled = true
     private var fabGestures = true
     private var noClipboard = false
     private var simpleSyntax = false
+    private var dropHesitations = true
+    private var noFinalPeriod = false
     private var fabHiddenApps: Set<String> = emptySet()
     private var fabScale = 1f
     private var fabPreviewing = false
@@ -110,6 +118,11 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private var volumeKeyPressed = false
     private var volumeKeyHoldTriggered = false
     private var volumeKeyStartedRecording = false
+
+    /** Volume up sends only for a short while after a dictation went into a field of this app. */
+    private var sendKeyPressed = false
+    private var sendArmedUntil = 0L
+    private var sendArmedPackage: String? = null
 
     @Volatile
     private var recording = false
@@ -236,6 +249,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
         serviceScope.launch {
             SettingsRepository
+                .sendKey(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> sendKeyEnabled = enabled }
+        }
+
+        serviceScope.launch {
+            SettingsRepository
                 .noClipboard(this@GigaPisarAccessibilityService)
                 .collectLatest { enabled -> noClipboard = enabled }
         }
@@ -243,6 +262,16 @@ class GigaPisarAccessibilityService : AccessibilityService() {
             SettingsRepository
                 .simpleSyntax(this@GigaPisarAccessibilityService)
                 .collectLatest { enabled -> simpleSyntax = enabled }
+        }
+        serviceScope.launch {
+            SettingsRepository
+                .dropHesitations(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> dropHesitations = enabled }
+        }
+        serviceScope.launch {
+            SettingsRepository
+                .noFinalPeriod(this@GigaPisarAccessibilityService)
+                .collectLatest { enabled -> noFinalPeriod = enabled }
         }
 
         serviceScope.launch {
@@ -268,6 +297,9 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            return handleSendKey(event)
+        }
         if (event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
             return false
         }
@@ -431,7 +463,7 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private fun findFocusedEditable(event: AccessibilityEvent? = null): AccessibilityNodeInfo? {
         val eventSource = event?.source
         if (eventSource != null && eventSource.isEditable && eventSource.isEnabled && eventSource.isFocused) {
-            return eventSource
+            return if (forDictation(eventSource)) eventSource else null
         }
 
         return try {
@@ -439,15 +471,76 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                     ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
-            if (focused != null && focused.isEditable && focused.isEnabled) {
-                focused
-            } else {
-                null
+            when {
+                focused == null || !focused.isEnabled -> null
+                focused.isEditable -> focused.takeIf { forDictation(it) }
+                // Samsung Notes draws its own editor: the system sees no field, only the
+                // keyboard channel the editor keeps open. That channel says where to type.
+                keyboardEditorOpen(focused) -> focused
+                else -> null
             }
         } catch (_: Throwable) {
             null
         }
     }
+
+    /**
+     * A number pad, a phone number, a date or the dialer's digits are fields, but not ones
+     * anyone dictates into: no button there, and the volume key stays plain volume.
+     */
+    private fun forDictation(node: AccessibilityNodeInfo): Boolean {
+        val type = try { node.inputType } catch (_: Exception) { 0 }
+        val pkg = node.packageName?.toString()
+        return forDictation(type, pkg)
+    }
+
+    private fun forDictation(
+        type: Int,
+        pkg: String?,
+    ): Boolean {
+        when (type and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> return false
+        }
+        pkg ?: return true
+        return !pkg.contains("dialer", ignoreCase = true) && !pkg.endsWith(".phone") && !pkg.contains("incallui")
+    }
+
+    /**
+     * Android 13+: whether the app that holds [focused] has a text editor connected to the
+     * keyboard right now. A connected editor with a text input type is a place to dictate even
+     * when the view that has the focus is not a text field to the system.
+     */
+    private fun keyboardEditorOpen(focused: AccessibilityNodeInfo): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return try {
+            val method = inputMethod ?: return false
+            val editor = method.currentInputEditorInfo ?: return false
+            method.currentInputConnection != null &&
+                editor.packageName == focused.packageName?.toString() &&
+                editor.inputType != InputType.TYPE_NULL &&
+                forDictation(editor.inputType, editor.packageName)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** The keyboard channel opening or closing is a focus change the events above do not report. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onCreateInputMethod(): InputMethod =
+        object : InputMethod(this) {
+            override fun onStartInput(
+                attribute: android.view.inputmethod.EditorInfo,
+                restarting: Boolean,
+            ) {
+                super.onStartInput(attribute, restarting)
+                if (insertionMode == InsertionMode.TEXT_FIELD) mainHandler.post { updateFocusedNode() }
+            }
+
+            override fun onFinishInput() {
+                super.onFinishInput()
+                if (insertionMode == InsertionMode.TEXT_FIELD) mainHandler.post { updateFocusedNode() }
+            }
+        }
 
     @Suppress("DEPRECATION")
     private fun recycleNode(node: AccessibilityNodeInfo?) {
@@ -564,10 +657,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                         return@launch
                     }
 
-                    val recognized =
+                    val heard =
                         recognizer.transcribe(
                             audio,
                         )
+                    // "Э-э" and "м-м" go before anything else looks at the text.
+                    val recognized = if (dropHesitations) Hesitations.removed(heard) else heard
                     // "Писарь, отмена" at the end: nothing goes in (#19 on macOS, the same on the phone).
                     if (Brain.cancelledBody(recognized) != null) {
                         withContext(Dispatchers.Main) {
@@ -580,7 +675,14 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                     // A password is never sent to a cloud service.
                     val brained = if (focusedNode?.isPassword == true) BrainOutcome(recognized) else applyBrain(recognized)
                     // Only plain dictation is simplified; what the Brain wrote goes in exactly as it is.
-                    val text = if (simpleSyntax && brained.original == null) SimpleSyntax.simplified(brained.text) else brained.text
+                    val styled = if (simpleSyntax && brained.original == null) SimpleSyntax.simplified(brained.text) else brained.text
+                    val text = if (noFinalPeriod) SimpleSyntax.withoutFinalPeriod(styled) else styled
+                    // What "Вернуть" puts back gets the same ending; an edit that came down to that
+                    // one period is no edit at all.
+                    val original =
+                        brained.original
+                            ?.let { if (noFinalPeriod) SimpleSyntax.withoutFinalPeriod(it) else it }
+                            ?.takeIf { it != text }
                     val brainFailure = brained.failure
 
                     withContext(
@@ -619,14 +721,14 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                                             focusedFieldBounds(),
                                             8000,
                                         ) { inserter.putToClipboard(text) }
-                                    } else if (brainFailure == null && brained.original == null) {
+                                    } else if (brainFailure == null && original == null) {
                                         pill.hide()
                                     }
+                                    if (inserted) armSendKey()
                                 }
                             }
                         }
 
-                        val original = brained.original
                         if (brainFailure != null && text.isNotBlank()) {
                             // The text is in as recognized; say why the Brain did not edit it.
                             notifyUser(ui().getString(R.string.brain_failed, brainFailure), 6000)
@@ -687,8 +789,10 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         if (parsed == null && !settings.everyTake) return BrainOutcome(text)
         // A failed command still puts in what was said before "Писарь".
         val body = parsed?.first ?: text
+        // A short take is fine as dictated: no request, no wait. A command always runs.
+        if (parsed == null && Brain.tooShortToEdit(body, settings.skipShort)) return BrainOutcome(text)
         return try {
-            val answer = Brain.transform(provider, key, model, body, parsed?.second)
+            val answer = Brain.transform(provider, key, model, body, parsed?.second, settings.shorten, settings.prompts)
             BrainOutcome(answer, original = body.takeIf { it != answer })
         } catch (error: BrainException) {
             BrainOutcome(body, failure = error.message ?: "")
@@ -728,7 +832,46 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 )
             }
         }
+        // A long text makes the field taller a moment after it goes in. The offer has to end
+        // up above the field, not on top of the text the person wants to read.
+        val shownAt = undoShownAt
+        for (delay in longArrayOf(150, 500, 1200)) {
+            mainHandler.postDelayed({
+                if (pillOffersUndo && undoShownAt == shownAt) pill.moveTo(focusedFieldBounds())
+            }, delay)
+        }
+        // The offer makes sense only while the text is still in the field. Once it is sent
+        // or wiped there is nothing to put back, and some messengers clear the field after
+        // sending without a text-changed event, so the field itself is looked at.
+        val probe = answer.trim().take(60)
+        val watch =
+            object : Runnable {
+                var seen = false
+
+                override fun run() {
+                    if (!pillOffersUndo || undoShownAt != shownAt || !pill.showsAction) return
+                    if (fieldText()?.contains(probe) == true) {
+                        seen = true
+                    } else if (seen) {
+                        pill.hide()
+                        return
+                    }
+                    mainHandler.postDelayed(this, UNDO_WATCH_MS)
+                }
+            }
+        if (probe.isNotEmpty()) mainHandler.postDelayed(watch, UNDO_WATCH_MS)
     }
+
+    /** What the focused field holds right now; a hint shown in an empty field is not text. */
+    private fun fieldText(): String? =
+        focusedNode?.let { node ->
+            try {
+                node.refresh()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && node.isShowingHintText) "" else node.text?.toString()
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     /**
      * Strings in the language picked in the settings. Taken fresh each time: the service
@@ -754,6 +897,15 @@ class GigaPisarAccessibilityService : AccessibilityService() {
                 mainHandler.postDelayed(this, UPDATE_TICK_MS)
             }
         }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // A foldable opened or closed, or the phone turned: the overlays follow the new screen.
+        mainHandler.post {
+            overlay.onScreenChanged()
+            pill.onScreenChanged()
+        }
+    }
 
     override fun onInterrupt() {
         cancelVolumeKeyGesture()
@@ -795,6 +947,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     private fun focusedFieldBounds(): Rect? =
         focusedNode?.let { node ->
             try {
+                // The node keeps the size it had when it was found; a field grows as text goes in.
+                node.refresh()
                 Rect().also(node::getBoundsInScreen)
             } catch (_: Exception) {
                 null
@@ -881,6 +1035,98 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Text just went into a field: for a short while volume up means "send". */
+    private fun armSendKey() {
+        if (!sendKeyEnabled) return
+        sendArmedPackage = focusedNode?.packageName?.toString() ?: activePackage()
+        sendArmedUntil = SystemClock.uptimeMillis() + SEND_KEY_WINDOW_MS
+    }
+
+    private fun activePackage(): String? =
+        try {
+            rootInActiveWindow?.packageName?.toString()
+        } catch (_: Exception) {
+            null
+        }
+
+    /** Volume up sends only when armed, in the same app, with a field still focused; otherwise it is plain volume. */
+    private fun sendKeyArmed(): Boolean =
+        sendKeyEnabled &&
+            insertionMode == InsertionMode.TEXT_FIELD &&
+            !recording &&
+            SystemClock.uptimeMillis() < sendArmedUntil &&
+            sendArmedPackage != null &&
+            sendArmedPackage == activePackage() &&
+            !onLockScreen() &&
+            findFocusedEditable() != null
+
+    private fun handleSendKey(event: KeyEvent): Boolean =
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                when {
+                    sendKeyPressed -> true
+                    event.repeatCount != 0 -> false
+                    !sendKeyArmed() -> false
+                    else -> {
+                        sendKeyPressed = true
+                        true
+                    }
+                }
+            }
+
+            KeyEvent.ACTION_UP -> {
+                if (!sendKeyPressed) {
+                    false
+                } else {
+                    sendKeyPressed = false
+                    sendArmedUntil = 0L
+                    if (performSend()) {
+                        buzz()
+                        // The message is gone: there is nothing left to put back.
+                        if (pillOffersUndo && pill.showsAction) pill.hide()
+                    } else {
+                        // No send button here: the press stays an ordinary volume-up, and the pill says why.
+                        audioManager.adjustStreamVolume(
+                            AudioManager.STREAM_MUSIC,
+                            AudioManager.ADJUST_RAISE,
+                            AudioManager.FLAG_SHOW_UI,
+                        )
+                        notifyUser(ui().getString(R.string.send_button_missing))
+                    }
+                    true
+                }
+            }
+
+            else -> sendKeyPressed
+        }
+
+    /** Taps the app's "Send" button; failing that, the keyboard's send action of a single-line field. */
+    private fun performSend(): Boolean {
+        val field = findFocusedEditable()
+        val root = try { rootInActiveWindow } catch (_: Exception) { null }
+        val bounds =
+            field?.let { node ->
+                try {
+                    Rect().also(node::getBoundsInScreen)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        val button = root?.let { SendButton.find(it, bounds) }
+        if (button != null) {
+            val clicked = try { button.performAction(AccessibilityNodeInfo.ACTION_CLICK) } catch (_: Exception) { false }
+            if (clicked) return true
+        }
+        if (field != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !field.isMultiLine) {
+            return try {
+                field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+            } catch (_: Exception) {
+                false
+            }
+        }
+        return false
+    }
+
     private fun cancelVolumeKeyGesture() {
         mainHandler.removeCallbacks(volumeKeyHoldRunnable)
         volumeKeyPressed = false
@@ -892,6 +1138,9 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         // An ordinary tap lasts 100-200 ms; recording starts only on a deliberate hold.
         private const val VOLUME_RECORDING_HOLD_DELAY_MS = 350L
 
+        /** How long after an insertion volume up still means "send". */
+        private const val SEND_KEY_WINDOW_MS = 20_000L
+
         /** How long the size preview stays after the slider stops. */
         private const val FAB_PREVIEW_LINGER_MS = 1200L
 
@@ -900,5 +1149,8 @@ class GigaPisarAccessibilityService : AccessibilityService() {
 
         /** How long "Вернуть" stays offered after a Brain edit. */
         private const val UNDO_OFFER_MS = 6000L
+
+        /** How often the field is checked for the text the undo offer is about. */
+        private const val UNDO_WATCH_MS = 300L
     }
 }

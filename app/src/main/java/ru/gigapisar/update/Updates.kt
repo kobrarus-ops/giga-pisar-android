@@ -116,6 +116,23 @@ object Updates {
     }
 
     /** Tells about a new version once, in the notification shade. */
+    /**
+     * The app's page in Google Play, when the store is on this phone. Installing from there
+     * once moves the phone onto store updates: same signature, so settings and the model stay.
+     */
+    fun playStoreIntent(context: Context): Intent? {
+        val installed =
+            try {
+                context.packageManager.getPackageInfo("com.android.vending", 0) != null
+            } catch (_: Exception) {
+                false
+            }
+        if (!installed) return null
+        return Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + context.packageName))
+            .setPackage("com.android.vending")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
     fun notifyOnce(
         context: Context,
         info: UpdateInfo,
@@ -141,17 +158,29 @@ object Updates {
                 Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
+        val play = playStoreIntent(context)
+        val toPlay =
+            play?.let { PendingIntent.getActivity(context, 1, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) }
         val notification =
             NotificationCompat
                 .Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(ui.getString(R.string.update_title, info.version))
-                .setContentText(info.notes(context).ifEmpty { ui.getString(R.string.update_tap) })
-                .setStyle(NotificationCompat.BigTextStyle().bigText(info.notes(context)))
-                .setContentIntent(open)
+                .setContentText(
+                    if (toPlay != null) ui.getString(R.string.update_play_notification) else info.notes(context).ifEmpty { ui.getString(R.string.update_tap) },
+                )
+                .setStyle(
+                    NotificationCompat.BigTextStyle().bigText(
+                        if (toPlay != null) ui.getString(R.string.update_play_notification) + "\n\n" + info.notes(context) else info.notes(context),
+                    ),
+                )
+                // With the store on the phone a tap goes there; the file update stays one button away.
+                .setContentIntent(toPlay ?: open)
                 .setAutoCancel(true)
-                .build()
-        manager.notify(NOTIFICATION_ID, notification)
+        if (toPlay != null) {
+            notification.addAction(0, ui.getString(R.string.update_file_button), open)
+        }
+        manager.notify(NOTIFICATION_ID, notification.build())
         p.edit().putLong("notifiedCode", info.versionCode).apply()
     }
 

@@ -36,6 +36,10 @@ object BrainClient {
     @Volatile
     private var sendReasoningEffort = true
 
+    /** Some models take only their default temperature; the same rule: send until refused once. */
+    @Volatile
+    private var sendTemperature = true
+
     fun complete(
         provider: BrainProvider,
         key: String,
@@ -43,14 +47,26 @@ object BrainClient {
         prompt: String,
         text: String,
         timeoutMs: Int,
+        temperature: Double? = null,
     ): String {
-        val withReasoning = sendReasoningEffort
-        val (status, body) = post(provider, key, model, prompt, text, withReasoning, timeoutMs)
-        if (withReasoning && (status == 400 || status == 422) && body.contains("reasoning", ignoreCase = true)) {
-            // Only drop the parameter when the server complains about it; a wrong model name is a real error.
-            sendReasoningEffort = false
-            val (retryStatus, retryBody) = post(provider, key, model, prompt, text, false, timeoutMs)
-            return readContent(retryStatus, retryBody, provider.local)
+        var withReasoning = sendReasoningEffort
+        var withTemperature = temperature?.takeIf { sendTemperature }
+        var (status, body) = post(provider, key, model, prompt, text, withReasoning, withTemperature, timeoutMs)
+        // Only drop a parameter when the server complains about it; a wrong model name is a real error.
+        for (attempt in 1..2) {
+            if (status != 400 && status != 422) break
+            if (withReasoning && body.contains("reasoning", ignoreCase = true)) {
+                sendReasoningEffort = false
+                withReasoning = false
+            } else if (withTemperature != null && body.contains("temperature", ignoreCase = true)) {
+                sendTemperature = false
+                withTemperature = null
+            } else {
+                break
+            }
+            val retry = post(provider, key, model, prompt, text, withReasoning, withTemperature, timeoutMs)
+            status = retry.first
+            body = retry.second
         }
         return readContent(status, body, provider.local)
     }
@@ -81,6 +97,7 @@ object BrainClient {
         prompt: String,
         text: String,
         withReasoning: Boolean,
+        temperature: Double?,
         timeoutMs: Int,
     ): Pair<Int, String> {
         val payload =
@@ -93,6 +110,7 @@ object BrainClient {
                         .put(JSONObject().put("role", "user").put("content", text)),
                 )
         if (withReasoning) payload.put("reasoning_effort", "none")
+        if (temperature != null) payload.put("temperature", temperature)
         return request("POST", "${provider.baseUrl}/chat/completions", key, payload.toString(), timeoutMs)
     }
 
