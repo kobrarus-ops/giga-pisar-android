@@ -259,6 +259,24 @@ class OverlayManager(
     val handsFree: Boolean
         get() = button.handsFree
 
+    /**
+     * A double press of the volume key: the recording already runs without anyone holding
+     * anything, so the button says "Вставить" and a tap on it ends the recording. When the strip is
+     * on screen it drops the lock hint and starts taking taps on "Cancel".
+     */
+    fun lockHandsFree() {
+        button.handsFree = true
+        button.setState(RecordingButton.State.RECORDING)
+
+        if (!chromeShown) return
+
+        lock.locked = true
+        lock.progress = 0f
+        bar.handsFree = true
+        barParams.flags = barParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        updateWindow(bar, barParams)
+    }
+
     /** Off in the settings: hold, speak, let go, as before; no slides and no strip. */
     var gestures: Boolean
         get() = button.gestures
