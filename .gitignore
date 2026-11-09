@@ -18,3 +18,4 @@
 local.properties
 giga-pisar-release.jks
 *.jks
+.release-keystore-secret.txt
