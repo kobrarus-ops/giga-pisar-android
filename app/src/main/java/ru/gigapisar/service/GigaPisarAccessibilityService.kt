@@ -5,8 +5,8 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.InputMethod
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Build
@@ -421,14 +421,14 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     }
 
     /** The PIN or password field of the lock screen is a text field too, but not one for dictation. */
-    private fun onLockScreen(): Boolean =
-        getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+    private fun onLockScreen(): Boolean = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
 
     private fun updateButtonVisibility() {
         val shouldShow =
             fabPreviewing ||
                 // A hands-free recording is ended only with the button: it stays until then.
-                recording && overlay.handsFree ||
+                recording &&
+                overlay.handsFree ||
                 virtualButtonEnabled &&
                 (
                     insertionMode == InsertionMode.CLIPBOARD ||
@@ -489,7 +489,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
      * anyone dictates into: no button there, and the volume key stays plain volume.
      */
     private fun forDictation(node: AccessibilityNodeInfo): Boolean {
-        val type = try { node.inputType } catch (_: Exception) { 0 }
+        val type =
+            try {
+                node.inputType
+            } catch (_: Exception) {
+                0
+            }
         val pkg = node.packageName?.toString()
         return forDictation(type, pkg)
     }
@@ -776,15 +781,10 @@ class GigaPisarAccessibilityService : AccessibilityService() {
         val settings = brainSettings
         if (!settings.enabled || text.isBlank()) return BrainOutcome(text)
         val listed = BrainProviders.byId(settings.providerId) ?: return BrainOutcome(text)
-        // A local server lives at the address the person typed; clouds have theirs in the table.
-        val provider =
-            if (listed.local) {
-                settings.ollamaUrl.takeIf { it.isNotBlank() }?.let(BrainProviders::ollamaAt) ?: return BrainOutcome(text)
-            } else {
-                listed
-            }
+        // A local or own server lives at the address the person typed; clouds have theirs in the table.
+        val provider = BrainProviders.endpoint(listed, settings.ollamaUrl, settings.customUrl) ?: return BrainOutcome(text)
         val model = settings.model ?: return BrainOutcome(text)
-        val key = KeyVault.load(this, provider.id) ?: if (provider.local) "" else return BrainOutcome(text)
+        val key = KeyVault.load(this, provider.id) ?: if (provider.local || provider.custom) "" else return BrainOutcome(text)
         val parsed = Brain.parseCommand(text)
         if (parsed == null && !settings.everyTake) return BrainOutcome(text)
         // A failed command still puts in what was said before "Писарь".
@@ -1103,7 +1103,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
     /** Taps the app's "Send" button; failing that, the keyboard's send action of a single-line field. */
     private fun performSend(): Boolean {
         val field = findFocusedEditable()
-        val root = try { rootInActiveWindow } catch (_: Exception) { null }
+        val root =
+            try {
+                rootInActiveWindow
+            } catch (_: Exception) {
+                null
+            }
         val bounds =
             field?.let { node ->
                 try {
@@ -1114,7 +1119,12 @@ class GigaPisarAccessibilityService : AccessibilityService() {
             }
         val button = root?.let { SendButton.find(it, bounds) }
         if (button != null) {
-            val clicked = try { button.performAction(AccessibilityNodeInfo.ACTION_CLICK) } catch (_: Exception) { false }
+            val clicked =
+                try {
+                    button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                } catch (_: Exception) {
+                    false
+                }
             if (clicked) return true
         }
         if (field != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !field.isMultiLine) {

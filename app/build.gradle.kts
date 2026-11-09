@@ -7,8 +7,8 @@ plugins {
     id("com.diffplug.spotless")
 }
 
-val appVersionName = "0.2.15"
-val appVersionCode = 33
+val appVersionName = "0.2.16"
+val appVersionCode = 34
 
 val localProperties =
     Properties().apply {
@@ -74,6 +74,7 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Phones only: x86 builds serve emulators and would double the APK size.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -197,4 +198,11 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
 
     testImplementation(libs.junit)
+
+    // Instrumented tests: the "own server" tab is checked on a real phone, not only in code.
+    androidTestImplementation(composeBom)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
